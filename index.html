@@ -1,0 +1,1485 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Música Diego</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Música Diego">
+<meta name="theme-color" content="#050508">
+<link rel="apple-touch-icon" href="musica.png">
+<link rel="apple-touch-icon" sizes="180x180" href="musica.png">
+<link rel="icon" type="image/png" href="musica.png">
+<script>
+/* Tema antes de pintar (evita el destello) */
+(function () {
+    try {
+        var t = JSON.parse(localStorage.getItem('musica_diego_theme') || '"dark"');
+        var dark = t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.classList.toggle('dark', dark);
+    } catch (e) {}
+})();
+</script>
+<style>
+:root {
+    --bg: #f2f2f7; --card: rgba(0,0,0,.04); --card2: rgba(0,0,0,.065); --line: rgba(0,0,0,.09);
+    --label: #1c1c1e; --label2: #636366; --tint: #ffa400; --rail: rgba(0,0,0,.13);
+    --mini-bg: rgba(255,255,255,.92); --blob1: rgba(147,51,234,.10); --blob2: rgba(234,88,12,.10);
+    --safe-top: env(safe-area-inset-top, 0px);
+    --bar-bottom: max(calc(env(safe-area-inset-bottom, 0px) + .5rem), 24px);
+    --stack: calc(var(--bar-bottom) + 4.125rem);
+    /* Liquid Glass (claro) */
+    --lg-glass: rgba(255,255,255,.34); --lg-blur: 2px; --lg-txt-shadow: rgba(0,0,0,.2); --lg-ink: var(--tint); --lg-edge: rgba(0,0,0,.10);
+    --lg-sink: rgba(0,0,0,.10); --lg-sink2: rgba(0,0,0,.06); --lg-vig: rgba(0,0,0,.05); --lg-cast: rgba(0,0,0,.18);
+    --lg-blend: normal; --lg-ca-op: .6; --lg-line: rgba(0,0,0,.35);
+    --lg-flat: rgba(0,0,0,.09); --lg-fg: #0b0b0f;
+}
+html.dark {
+    --bg: #050508; --card: rgba(255,255,255,.06); --card2: rgba(255,255,255,.10); --line: rgba(255,255,255,.12);
+    --label: #ffffff; --label2: #a1a1aa; --rail: rgba(255,255,255,.2);
+    --mini-bg: rgba(24,24,28,.9); --blob1: rgba(147,51,234,.22); --blob2: rgba(234,88,12,.18);
+    --lg-glass: rgba(40,40,44,.26); --lg-txt-shadow: rgba(0,0,0,.45); --lg-edge: rgba(255,255,255,.14);
+    --lg-sink: rgba(0,0,0,.4); --lg-sink2: rgba(0,0,0,.28); --lg-vig: rgba(0,0,0,.16); --lg-cast: rgba(0,0,0,.4);
+    --lg-blend: screen; --lg-ca-op: 1; --lg-line: rgba(0,0,0,.6);
+    --lg-flat: rgba(0,0,0,.5); --lg-fg: #ffffff;
+    color-scheme: dark;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html { overscroll-behavior: none; background-color: var(--bg); }
+body {
+    margin: 0; min-height: 100vh; background-color: var(--bg); color: var(--label);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+button { font-family: inherit; color: inherit; border: 0; background: none; cursor: pointer; padding: 0; }
+input, select, textarea { font-size: 16px !important; font-family: inherit; }
+.hidden { display: none !important; }
+.ic { width: 1.5rem; height: 1.5rem; fill: currentColor; flex: none; }
+.press { transition: transform .15s ease, opacity .15s ease; }
+.press:active { transform: scale(.94); }
+.glass { background: var(--card2); border: 1px solid var(--line); -webkit-backdrop-filter: blur(14px) saturate(160%); backdrop-filter: blur(14px) saturate(160%); }
+.pill { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; height: 2.5rem; padding: 0 1rem; border-radius: 99px; font-weight: 700; font-size: .9rem; }
+.pill.orange { background: var(--tint); color: #000; }
+.pill .ic { width: 1.1rem; height: 1.1rem; }
+
+/* Fondo suave (sin filtros pesados) */
+#bg-blobs { position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background: radial-gradient(70% 45% at 0% 0%, var(--blob1), transparent 70%), radial-gradient(70% 45% at 100% 100%, var(--blob2), transparent 70%); }
+
+/* Vistas con scroll propio (pantalla completa, sin franja inferior) */
+.view { position: fixed; inset: 0; z-index: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; display: none;
+    padding: calc(var(--safe-top) + 1.1rem) 1.25rem calc(var(--stack) + 6.5rem); }
+.view.on { display: block; }
+.h1 { font-size: 2rem; font-weight: 800; letter-spacing: -.03em; margin: .2rem 0 1rem; }
+.sec-lbl { font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--label2); margin: 1.2rem 0 .4rem; }
+
+.search { display: flex; align-items: center; gap: .6rem; height: 3rem; padding: 0 .9rem; border-radius: 16px; background: var(--card2); border: 1px solid var(--line); color: var(--label2); }
+.search input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--label); -webkit-user-select: text; user-select: text; }
+.search input::placeholder { color: var(--label2); }
+.search .clear { width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--card2); display: none; align-items: center; justify-content: center; font-size: .8rem; color: var(--label2); }
+.search.has .clear { display: flex; }
+.search .sv { width: 2rem; height: 2rem; background: none; }
+.search .sv.on { color: var(--tint); }
+.chip.sav { border-color: var(--tint); }
+.row .rm { width: 2.2rem; height: 2.2rem; border-radius: 50%; color: var(--label2); font-size: 1rem; flex: none; }
+.chips { display: flex; gap: .5rem; overflow-x: auto; margin: .9rem -1.25rem .2rem; padding: 0 1.25rem; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: none; height: 2.1rem; padding: 0 .9rem; border-radius: 99px; background: var(--card2); border: 1px solid var(--line); font-size: .8125rem; font-weight: 600; color: var(--label); }
+.chip.on { background: var(--tint); color: #000; border-color: transparent; }
+
+.row { display: flex; align-items: center; gap: .8rem; padding: .55rem .35rem; border-radius: 14px; cursor: pointer; }
+.row:active { background: var(--card); }
+.cov { width: 3.5rem; height: 3.5rem; border-radius: 10px; object-fit: cover; background: var(--card2); flex: none; }
+.row .tx { flex: 1; min-width: 0; }
+.row .t { font-weight: 650; font-size: .95rem; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.row .s { font-size: .8125rem; color: var(--label2); margin-top: .15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.empty, .errbox { text-align: center; color: var(--label2); padding: 2.2rem 1rem; font-size: .9rem; line-height: 1.45; }
+.errbox button, .empty button { margin-top: .8rem; }
+.spin { width: 1.5rem; height: 1.5rem; margin: 1.6rem auto; border: 3px solid var(--line); border-top-color: var(--tint); border-radius: 50%; animation: sp .8s linear infinite; }
+@keyframes sp { to { transform: rotate(360deg); } }
+
+.cont { display: flex; align-items: center; gap: .9rem; padding: .8rem; border-radius: 22px; margin: 1rem 0 .2rem; cursor: pointer; }
+.cont .cov { width: 4.2rem; height: 4.2rem; border-radius: 14px; }
+.cont .tx { flex: 1; min-width: 0; }
+.cont .k { font-size: .7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--tint); }
+.cont .t { font-weight: 700; font-size: 1rem; margin-top: .1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cont .s { font-size: .8rem; color: var(--label2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cont .bar { height: 3px; border-radius: 3px; background: var(--rail); margin-top: .5rem; overflow: hidden; }
+.cont .bar i { display: block; height: 100%; background: var(--tint); width: 0; }
+.cont .go { width: 2.8rem; height: 2.8rem; border-radius: 50%; background: var(--tint); color: #000; display: flex; align-items: center; justify-content: center; flex: none; }
+.cont .go .ic { width: 1.2rem; height: 1.2rem; }
+
+.seg { display: flex; background: var(--card2); border-radius: 12px; padding: 3px; gap: 2px; }
+.seg button { flex: 1; height: 2rem; border-radius: 9px; font-size: .8125rem; font-weight: 600; color: var(--label2); }
+.seg button.on { background: var(--tint); color: #000; }
+
+/* Hojas (álbum y reproductor) */
+.sheet { position: fixed; inset: 0; background: var(--bg); overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    transform: translate3d(0,100%,0); visibility: hidden; transition: transform .38s cubic-bezier(.32,.72,0,1), visibility 0s linear .38s; }
+.sheet.on { transform: none; visibility: visible; transition: transform .38s cubic-bezier(.32,.72,0,1), visibility 0s; }
+#sheet-album { z-index: 20; padding: calc(var(--safe-top) + .8rem) 1.25rem calc(var(--stack) + 6.5rem); }
+.top { display: flex; justify-content: space-between; align-items: center; }
+.top .pill { height: 2.25rem; font-size: .85rem; }
+.rnd { width: 2.5rem; height: 2.5rem; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; }
+.rnd.fav { color: var(--tint); }
+.acover { display: block; width: min(15rem, 62vw); aspect-ratio: 1; object-fit: cover; border-radius: 16px; margin: 1.2rem auto 1rem; background: var(--card2); box-shadow: 0 2px 8px rgba(0,0,0,.3), 0 14px 34px rgba(0,0,0,.3); }
+.atitle { font-size: 1.4rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; text-align: center; }
+.aby { font-size: 1rem; color: var(--label2); text-align: center; margin-top: .3rem; }
+/* El nombre del artista es un enlace: se ve con color, subrayado y una flechita » */
+.aby[data-act], .pby[data-act] { color: var(--tint); font-weight: 600; cursor: pointer;
+    text-decoration: underline dotted; text-decoration-color: currentColor; text-underline-offset: .25em; text-decoration-thickness: 1px; }
+.pby[data-act] { opacity: 1; }
+.aby[data-act]::after, .pby[data-act]::after { content: ' \203A'; font-weight: 700; }
+.aby[data-act]:active, .pby[data-act]:active { opacity: .65; }
+.ameta { font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--tint); text-align: center; margin-top: .45rem; }
+.abtns { display: flex; gap: .6rem; justify-content: center; margin: 1.1rem 0 .8rem; }
+.adesc { font-size: .85rem; line-height: 1.4; color: var(--label2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin: .3rem 0 .6rem; -webkit-user-select: text; user-select: text; }
+.adesc.open { -webkit-line-clamp: unset; display: block; }
+.trk { display: flex; align-items: center; gap: .75rem; padding: .7rem .4rem; border-radius: 0; cursor: pointer; border-bottom: 1px solid var(--line); }
+.trk:active { background: var(--card); }
+.trk .n { width: 1.6rem; text-align: center; font-size: .85rem; color: var(--label2); font-variant-numeric: tabular-nums; flex: none; }
+.trk .tt { flex: 1; min-width: 0; font-size: .95rem; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trk .d { font-size: .8rem; color: var(--label2); font-variant-numeric: tabular-nums; flex: none; }
+.trk.cur .tt { color: var(--tint); font-weight: 700; }
+.eq { display: inline-flex; gap: 2px; align-items: flex-end; height: 14px; }
+.eq i { width: 3px; background: var(--tint); border-radius: 2px; height: 30%; animation: eq 1s ease-in-out infinite; }
+.eq i:nth-child(2) { animation-delay: .2s; } .eq i:nth-child(3) { animation-delay: .4s; }
+.eq.paused i { animation-play-state: paused; }
+@keyframes eq { 0%,100% { height: 25%; } 50% { height: 100%; } }
+
+/* Reproductor */
+#sheet-player { z-index: 30; display: flex; flex-direction: column; overflow: hidden; isolation: isolate;
+    padding: calc(var(--safe-top) + .6rem) 1.5rem calc(var(--stack) + 10px); }
+.pbg { position: absolute; inset: -12%; z-index: -2; background-size: cover; background-position: center; filter: blur(46px) saturate(1.4); opacity: .5; transition: background-image .7s ease-in-out; }
+.pshade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(to bottom, rgba(0,0,0,.2), var(--bg) 88%); }
+.phead { display: flex; justify-content: space-between; align-items: center; flex: none; }
+#wave { width: 110px; height: 34px; }
+.pcover { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: .6rem 0 1rem; }
+.pcover img { max-width: 100%; max-height: 100%; border-radius: 14px; object-fit: contain; box-shadow: 0 2px 8px rgba(0,0,0,.3), 0 12px 30px rgba(0,0,0,.35); }
+.ptitle { font-size: 1.6rem; font-weight: 800; letter-spacing: -.03em; line-height: 1.1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pby { font-size: 1.02rem; opacity: .72; margin-top: .3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.palb { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--tint); margin-top: .4rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.seek { -webkit-appearance: none; appearance: none; width: 100%; height: 1.6rem; background: transparent; margin: .7rem 0 0; outline: 0; touch-action: none; }
+.seek::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: linear-gradient(90deg, var(--tint) var(--p, 0%), var(--rail) var(--p, 0%)); }
+.seek::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--tint); margin-top: -5px; }
+.seek::-moz-range-track { height: 4px; border-radius: 4px; background: var(--rail); }
+.seek::-moz-range-progress { height: 4px; border-radius: 4px; background: var(--tint); }
+.seek::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--tint); }
+.times { display: flex; justify-content: space-between; font-size: .75rem; color: var(--label2); font-variant-numeric: tabular-nums; }
+.ctrls { display: flex; align-items: center; justify-content: space-between; margin: .5rem 0 .9rem; }
+.cbtn { width: 3rem; height: 3rem; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+.cbtn .ic { width: 1.75rem; height: 1.75rem; }
+.cbtn.sk .ic { width: 2.1rem; height: 2.1rem; }
+.play { width: 4.6rem; height: 4.6rem; border-radius: 50%; background: var(--tint); color: #000; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(255,164,0,.35); }
+.play .ic { width: 2rem; height: 2rem; }
+.play.buf { animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .55; } }
+.sec { display: flex; gap: .4rem; }
+.sbtn { flex: 1; height: 2.4rem; border-radius: 99px; font-size: .72rem; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: .3rem; background: var(--card2); border: 1px solid var(--line); }
+.sbtn .ic { width: 1rem; height: 1rem; }
+.sbtn.on { color: var(--tint); }
+#queue { position: absolute; left: 0; right: 0; bottom: 0; top: 26%; z-index: 5; background: var(--bg); border-top: 1px solid var(--line); border-radius: 24px 24px 0 0; overflow-y: auto;
+    padding: 1rem 1.25rem calc(var(--stack) + 10px); transform: translateY(105%); transition: transform .32s cubic-bezier(.32,.72,0,1); }
+#queue.on { transform: none; }
+.qhead { display: flex; justify-content: space-between; align-items: center; margin-bottom: .4rem; font-weight: 800; font-size: 1.05rem; }
+
+/* Mini reproductor */
+#mini { position: fixed; left: 1rem; right: 1rem; bottom: calc(var(--stack) + 10px); z-index: 25; display: flex; align-items: center; gap: .75rem; padding: .6rem .7rem; border-radius: 20px; cursor: pointer;
+    background: var(--mini-bg); border: 1px solid var(--line); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 8px 24px rgba(0,0,0,.28); }
+#mini .cov { width: 2.9rem; height: 2.9rem; border-radius: 10px; }
+#mini .tx { flex: 1; min-width: 0; }
+#mini .t { font-weight: 700; font-size: .92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#mini .s { font-size: .8rem; color: var(--label2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#mini .mp { width: 2.6rem; height: 2.6rem; border-radius: 50%; background: var(--tint); color: #000; display: flex; align-items: center; justify-content: center; }
+#mini .mp .ic { width: 1.1rem; height: 1.1rem; }
+#mini .mn { width: 2.4rem; height: 2.4rem; display: flex; align-items: center; justify-content: center; }
+#mini .mn .ic { width: 1.3rem; height: 1.3rem; }
+#mini .mbar { position: absolute; left: .9rem; right: .9rem; bottom: 0; height: 2px; border-radius: 2px; background: transparent; overflow: hidden; }
+#mini .mbar i { display: block; height: 100%; background: var(--tint); width: 0; }
+
+#toast { position: fixed; top: calc(var(--safe-top) + .6rem); left: 50%; z-index: 60; transform: translate(-50%, -160%); max-width: 90%; padding: .6rem 1rem; border-radius: 99px;
+    font-size: .85rem; font-weight: 600; text-align: center; background: var(--mini-bg); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0,0,0,.3); transition: transform .3s cubic-bezier(.32,.72,0,1); pointer-events: none; }
+#toast.on { transform: translate(-50%, 0); }
+
+/* Ajustes */
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 1rem; margin-bottom: 1rem; }
+.card-title { font-size: 1rem; font-weight: 800; margin: 0 0 .25rem; }
+.card-sub { font-size: .8125rem; color: var(--label2); margin: 0 0 .9rem; line-height: 1.4; }
+.set { margin-bottom: .95rem; }
+.set:last-child { margin-bottom: 0; }
+.set .nm { display: flex; justify-content: space-between; font-size: .9rem; font-weight: 600; margin-bottom: .45rem; }
+.set .hint { font-size: .75rem; color: var(--label2); margin-top: .35rem; line-height: 1.35; }
+.field .lbl { font-size: .875rem; font-weight: 600; }
+.num { font-variant-numeric: tabular-nums; color: var(--tint); }
+.btn { height: 2.5rem; padding: 0 1rem; border-radius: 12px; font-weight: 700; font-size: .875rem; }
+.btn-gray { background: var(--card2); border: 1px solid var(--line); }
+.btn-sm { height: 2.2rem; }
+.btn-danger { color: #ff453a; }
+.about { font-size: .75rem; color: var(--label2); line-height: 1.5; text-align: center; padding: .4rem 1rem 0; }
+
+/* ───────── Tab bar · Liquid Glass v3 ───────── */
+.tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding: 0 .875rem var(--bar-bottom); pointer-events: none; }
+.lg-bar { position: relative; pointer-events: auto; max-width: 17.5rem; margin: 0 auto; height: 4.125rem; border-radius: 99px; will-change: transform; touch-action: none; user-select: none; -webkit-user-select: none; cursor: pointer; }
+.lg-bg, .lg-cast, .lg-edge { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; }
+.lg-bg { background: var(--lg-glass); -webkit-backdrop-filter: blur(var(--lg-blur, 2px)) saturate(1.6); backdrop-filter: blur(var(--lg-blur, 2px)) saturate(1.6); }
+.tabbar .lg-tabs, .lg-bar .lg-tabs { text-shadow: 0 0 6px var(--lg-txt-shadow); }
+.lg-cast { box-shadow: 0 2px 9px var(--lg-cast); }
+.lg-edge { width: 100%; height: 100%; overflow: visible; }
+.lg-edge polygon { fill: none; stroke: var(--lg-edge); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.lg-tabs { position: absolute; left: 0; top: 0; display: grid; grid-template-columns: repeat(3, 1fr); padding: 4px; }
+.tabbar button, .lg-tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .125rem; padding: .375rem 0; color: var(--lg-fg); font-size: .625rem; font-weight: 500; letter-spacing: .01em; border-radius: 2rem; }
+.tabbar button { transition: transform 120ms ease-out; background: none; border: 0; font-family: inherit; cursor: pointer; color: var(--lg-fg) !important; font-weight: 500 !important; }
+.tabbar button svg, .lg-tab svg { width: 1.5rem; height: 1.5rem; }
+.lg-tab { pointer-events: none; }
+.lg-main .lg-tab { color: var(--lg-ink); }
+.lg-r .lg-tab { color: #ff2a45; }
+.lg-b .lg-tab { color: #2a8bff; }
+.lg-r, .lg-b { mix-blend-mode: var(--lg-blend); opacity: var(--lg-ca-op); transition: opacity .22s ease; }
+.lg-lens { position: absolute; left: 0; top: 4px; will-change: transform; transition: box-shadow .22s ease, background-color .22s ease;
+    background: radial-gradient(closest-side at 50% 50%, rgba(255,255,255,.03) 55%, var(--lg-vig) 100%);
+    box-shadow: inset 0 6px 9px -5px var(--lg-sink), inset 0 -6px 8px -5px var(--lg-sink2), inset 2px 0 2px -1px rgba(255,90,80,.16), inset -2px 0 2px -1px rgba(80,150,255,.2),
+        inset 0 0 0 1px rgba(255,255,255,.05), inset 0 1px 0 rgba(255,255,255,.12), inset 0 -1px 0 rgba(255,255,255,.06), 0 0 0 .5px var(--lg-line), 0 3px 12px var(--lg-cast); }
+.lg-lens::after { content: ""; position: absolute; left: 26%; right: 26%; top: 1px; height: 2px; border-radius: 2px; opacity: .22;
+    background: linear-gradient(90deg, rgba(120,200,255,0), rgba(255,255,255,.95) 30%, rgba(255,255,255,.95) 70%, rgba(255,120,120,0)); filter: blur(.6px); pointer-events: none; }
+.lg-lens::before { content: ""; position: absolute; left: 30%; right: 30%; bottom: 1px; height: 2px; border-radius: 2px;
+    background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.3), rgba(255,255,255,0)); pointer-events: none; }
+.lg-lens.lg-flat { background: var(--lg-flat); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+.lg-lens.lg-flat::before, .lg-lens.lg-flat::after { display: none; }
+.lg-lens.lg-flat .lg-r, .lg-lens.lg-flat .lg-b { opacity: 0; }
+.lg-lens.lg-flat .lg-glare, .lg-lens.lg-flat .lg-rim { opacity: 0 !important; }
+.lg-clip { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; isolation: isolate; }
+.lg-clone { position: absolute; left: 0; top: 0; pointer-events: none; }
+.lg-glare { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: var(--lg-blend); opacity: 0;
+    background: radial-gradient(circle at var(--gx, 30%) var(--gy, 12%), rgba(255,255,255,.8) 0, rgba(190,225,255,.4) 16%, rgba(255,255,255,0) 52%); }
+.lg-rim { position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none; opacity: .8; filter: blur(.4px);
+    background: conic-gradient(from calc(var(--ang, -30deg) * .25),
+        rgba(110,230,170,0) 318deg, rgba(110,230,170,.4) 336deg, rgba(95,170,255,.48) 353deg, rgba(175,120,255,.42) 8deg, rgba(255,110,140,.3) 24deg, rgba(255,110,140,0) 42deg,
+        rgba(255,110,140,0) 138deg, rgba(255,110,140,.28) 155deg, rgba(175,120,255,.38) 174deg, rgba(95,170,255,.42) 191deg, rgba(110,230,170,.36) 208deg, rgba(110,230,170,0) 226deg);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+.lg-range { width: 100%; accent-color: var(--tint); margin: 0; height: 1.75rem; }
+@media (prefers-reduced-transparency: reduce) { .lg-bg { background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+@media (prefers-reduced-motion: reduce) { .eq i, .play.buf, .spin { animation: none; } .sheet, #queue { transition-duration: .01s; } }
+</style>
+</head>
+<body>
+<div id="bg-blobs" aria-hidden="true"></div>
+
+<!-- Iconos -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.2v13.6a1 1 0 0 0 1.5.86l11-6.8a1 1 0 0 0 0-1.72l-11-6.8A1 1 0 0 0 8 5.2z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4.5" width="4.4" height="15" rx="1.4"/><rect x="13.6" y="4.5" width="4.4" height="15" rx="1.4"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path d="M6 5.5a1 1 0 0 1 2 0v5.2l9.3-5.4A1 1 0 0 1 18.8 6v12a1 1 0 0 1-1.5.87L8 13.5v5a1 1 0 0 1-2 0z"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M18 5.5a1 1 0 0 0-2 0v5.2L6.7 5.3A1 1 0 0 0 5.2 6v12a1 1 0 0 0 1.5.87L16 13.5v5a1 1 0 0 0 2 0z"/></symbol>
+    <symbol id="i-back15" viewBox="0 0 24 24"><path d="M12 5V2L7.5 5.5 12 9V6a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"/><text x="12" y="15.6" font-size="6.6" font-weight="700" text-anchor="middle" font-family="-apple-system,Arial,sans-serif">15</text></symbol>
+    <symbol id="i-fwd15" viewBox="0 0 24 24"><path d="M12 5V2l4.5 3.5L12 9V6a6 6 0 1 0 6 6h2a8 8 0 1 1-8-8z"/><text x="12" y="15.6" font-size="6.6" font-weight="700" text-anchor="middle" font-family="-apple-system,Arial,sans-serif">15</text></symbol>
+    <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M3 7h3.2c1.5 0 2.8.7 3.7 1.9l4.2 5.2c.9 1.2 2.2 1.9 3.7 1.9H21M3 17h3.2c1.5 0 2.8-.7 3.7-1.9M14.1 8.9C15 7.7 16.3 7 17.8 7H21M18.5 4.5 21 7l-2.5 2.5M18.5 14.5 21 17l-2.5 2.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M17 3l3 3-3 3M4 11V9a3 3 0 0 1 3-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 0 1-3 3H4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-repeat1" viewBox="0 0 24 24"><path d="M17 3l3 3-3 3M4 11V9a3 3 0 0 1 3-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 0 1-3 3H4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><text x="12" y="15" font-size="7.5" font-weight="800" text-anchor="middle" font-family="-apple-system,Arial,sans-serif">1</text></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20.6l-1.2-1.1C6 15.1 3 12.4 3 9a4.5 4.5 0 0 1 4.5-4.5c1.7 0 3.3.8 4.5 2.1 1.2-1.3 2.8-2.1 4.5-2.1A4.5 4.5 0 0 1 21 9c0 3.4-3 6.1-7.8 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-heartf" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54z"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M5 9l7 7 7-7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.3" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M15.4 15.4L20.5 20.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+</svg>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<!-- ═══════ BUSCAR ═══════ -->
+<main id="view-search" class="view on">
+    <h1 class="h1">Buscar</h1>
+    <div class="search" id="searchbox">
+        <svg class="ic" style="width:1.2rem;height:1.2rem"><use href="#i-search"/></svg>
+        <input id="q" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Artista, banda, persona o enlace">
+        <button class="clear sv" id="q-save" data-act="savesearch" aria-label="Guardar esta búsqueda"><svg class="ic" style="width:1.1rem;height:1.1rem"><use href="#i-heart" id="q-save-use"/></svg></button>
+        <button class="clear" id="q-clear" data-act="clearq" aria-label="Borrar">✕</button>
+    </div>
+    <div class="chips hidden" id="saved"></div>
+    <div class="chips" id="chips"></div>
+    <div class="chips" id="sorts"></div>
+    <div id="home-cont"></div>
+    <div class="sec-lbl" id="res-lbl">Lo más escuchado</div>
+    <div id="results"></div>
+    <div id="more" style="text-align:center"></div>
+</main>
+
+<!-- ═══════ BIBLIOTECA ═══════ -->
+<main id="view-library" class="view">
+    <h1 class="h1">Biblioteca</h1>
+    <div class="seg" id="lib-seg">
+        <button data-act="libtab" data-val="favs" class="on">Favoritos</button>
+        <button data-act="libtab" data-val="searches">Búsquedas</button>
+        <button data-act="libtab" data-val="recents">Recientes</button>
+    </div>
+    <div id="lib-list" style="margin-top:.8rem"></div>
+</main>
+
+<!-- ═══════ AJUSTES ═══════ -->
+<main id="view-settings" class="view">
+    <h1 class="h1">Ajustes</h1>
+
+    <div class="card">
+        <h3 class="card-title">Audio</h3>
+        <p class="card-sub">La calidad se aplica a las próximas pistas que abras.</p>
+        <div class="set">
+            <div class="nm"><span>Calidad</span></div>
+            <div class="seg">
+                <button data-act="set" data-key="quality" data-val="mp3">MP3 (rápido)</button>
+                <button data-act="set" data-key="quality" data-val="flac">FLAC (máxima)</button>
+            </div>
+            <div class="hint">FLAC suena mejor pero pesa mucho más. Si una pista no existe en ese formato, se usa el otro automáticamente.</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 class="card-title">Apariencia</h3>
+        <p class="card-sub">Tema de la app y onda animada del reproductor.</p>
+        <div class="set">
+            <div class="nm"><span>Tema</span></div>
+            <div class="seg">
+                <button data-act="set" data-key="theme" data-val="auto">Automático</button>
+                <button data-act="set" data-key="theme" data-val="dark">Oscuro</button>
+                <button data-act="set" data-key="theme" data-val="light">Claro</button>
+            </div>
+        </div>
+        <div class="set">
+            <div class="nm"><span>Onda animada</span></div>
+            <div class="seg">
+                <button data-act="set" data-key="waveOn" data-val="true">Sí</button>
+                <button data-act="set" data-key="waveOn" data-val="false">No</button>
+            </div>
+            <div class="hint">Es decorativa: se mueve mientras suena la música, pero no sigue el audio real (así no interfiere con la pantalla bloqueada).</div>
+        </div>
+        <div class="set">
+            <div class="nm"><span>Estilo de onda</span></div>
+            <div class="seg">
+                <button data-act="set" data-key="waveStyle" data-val="bars">Barras</button>
+                <button data-act="set" data-key="waveStyle" data-val="thin">Finas</button>
+                <button data-act="set" data-key="waveStyle" data-val="siri">Siri</button>
+            </div>
+        </div>
+        <div class="set">
+            <div class="nm"><span>Color de onda</span></div>
+            <div class="seg">
+                <button data-act="set" data-key="waveColor" data-val="orange">Naranja</button>
+                <button data-act="set" data-key="waveColor" data-val="mono">Blanco/negro</button>
+                <button data-act="set" data-key="waveColor" data-val="siri">Siri</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ajustes de la barra de pestañas -->
+    <div class="card">
+        <h3 class="card-title">Barra de pestañas</h3>
+        <p class="card-sub" style="margin-bottom:.875rem">Ajusta el efecto de vidrio de la barra inferior. Los cambios se ven al instante y se guardan en este dispositivo.</p>
+        <div style="display:grid;gap:.875rem">
+            <label class="field"><span class="lbl" style="display:flex;justify-content:space-between;gap:.5rem"><span>Magnificación de la lupa</span><output id="lg-mag-out" class="num">1.30×</output></span><input id="lg-mag" class="lg-range" type="range" min="1" max="1.8" step="0.01" value="1.3"></label>
+            <label class="field"><span class="lbl" style="display:flex;justify-content:space-between;gap:.5rem"><span>Dispersión de color</span><output id="lg-dis-out" class="num">1.00×</output></span><input id="lg-dis" class="lg-range" type="range" min="0" max="2.5" step="0.05" value="1"></label>
+            <label class="field"><span class="lbl" style="display:flex;justify-content:space-between;gap:.5rem"><span>Reflejo de luz</span><output id="lg-glr-out" class="num">1.00×</output></span><input id="lg-glr" class="lg-range" type="range" min="0" max="1.5" step="0.05" value="1"></label>
+            <label class="field"><span class="lbl" style="display:flex;justify-content:space-between;gap:.5rem"><span>Distorsión de agua</span><output id="lg-wet-out" class="num">1.00×</output></span><input id="lg-wet" class="lg-range" type="range" min="0" max="2.5" step="0.05" value="1"></label>
+            <button type="button" class="btn btn-gray btn-sm press" id="lg-reset">Restablecer</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 class="card-title">Datos</h3>
+        <p class="card-sub">Todo se guarda solo en este dispositivo.</p>
+        <div style="display:grid;gap:.6rem">
+            <button class="btn btn-gray btn-danger press" data-act="clear-recents">Borrar historial de reproducción</button>
+            <button class="btn btn-gray btn-danger press" data-act="clear-favs">Borrar favoritos</button>
+        </div>
+    </div>
+    <p class="about">La música viene de Internet Archive (archive.org). Solo se muestran ítems de acceso libre; algunos pueden no estar disponibles.</p>
+</main>
+
+<!-- ═══════ ÁLBUM ═══════ -->
+<section id="sheet-album" class="sheet" aria-label="Álbum">
+    <div class="top">
+        <button class="pill glass press" data-act="close-album"><svg class="ic"><use href="#i-left"/></svg>Volver</button>
+        <button class="rnd glass press fav" id="al-fav" data-act="fav-album" aria-label="Favorito"><svg class="ic"><use href="#i-heart"/></svg></button>
+    </div>
+    <img id="al-cover" class="acover" alt="">
+    <div class="atitle" id="al-title"></div>
+    <div class="aby" id="al-by"></div>
+    <div class="ameta" id="al-meta"></div>
+    <div class="abtns">
+        <button class="pill orange press" data-act="al-play"><svg class="ic"><use href="#i-play"/></svg>Reproducir</button>
+        <button class="pill glass press" data-act="al-shuffle"><svg class="ic"><use href="#i-shuffle"/></svg>Aleatorio</button>
+    </div>
+    <div class="adesc" id="al-desc" data-act="toggle-desc"></div>
+    <div id="al-tracks"></div>
+</section>
+
+<!-- ═══════ REPRODUCTOR ═══════ -->
+<section id="sheet-player" class="sheet" aria-label="Reproductor">
+    <div class="pbg" id="pbg"></div>
+    <div class="pshade"></div>
+    <div class="phead">
+        <button class="pill glass press" data-act="close-player"><svg class="ic"><use href="#i-down"/></svg>Cerrar</button>
+        <canvas id="wave" aria-hidden="true"></canvas>
+        <button class="rnd glass press fav" id="p-fav" data-act="fav-album" aria-label="Favorito"><svg class="ic"><use href="#i-heart"/></svg></button>
+    </div>
+    <div class="pcover"><img id="p-cover" alt=""></div>
+    <div>
+        <div class="ptitle" id="p-title">—</div>
+        <div class="pby" id="p-by"></div>
+        <div class="palb" id="p-alb"></div>
+        <input id="seek" class="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Progreso">
+        <div class="times"><span id="t-cur">0:00</span><span id="t-dur">0:00</span></div>
+        <div class="ctrls">
+            <button class="cbtn press" data-act="back15" aria-label="Retroceder 15 segundos"><svg class="ic"><use href="#i-back15"/></svg></button>
+            <button class="cbtn sk press" data-act="prev" aria-label="Anterior"><svg class="ic"><use href="#i-prev"/></svg></button>
+            <button class="play press" id="p-play" data-act="toggle" aria-label="Reproducir o pausar"><svg class="ic"><use href="#i-play" id="p-play-use"/></svg></button>
+            <button class="cbtn sk press" data-act="next" aria-label="Siguiente"><svg class="ic"><use href="#i-next"/></svg></button>
+            <button class="cbtn press" data-act="fwd15" aria-label="Adelantar 15 segundos"><svg class="ic"><use href="#i-fwd15"/></svg></button>
+        </div>
+        <div class="sec">
+            <button class="sbtn press" id="b-shuffle" data-act="shuffle"><svg class="ic"><use href="#i-shuffle"/></svg><span>Mezclar</span></button>
+            <button class="sbtn press" id="b-repeat" data-act="repeat"><svg class="ic"><use href="#i-repeat" id="b-repeat-use"/></svg><span id="b-repeat-t">Repetir</span></button>
+            <button class="sbtn press" id="b-sleep" data-act="sleep"><svg class="ic"><use href="#i-moon"/></svg><span id="b-sleep-t">Dormir</span></button>
+            <button class="sbtn press" data-act="queue"><svg class="ic"><use href="#i-list"/></svg><span>Pistas</span></button>
+        </div>
+    </div>
+    <div id="queue">
+        <div class="qhead"><span>Pistas</span><button class="rnd glass press" data-act="queue" aria-label="Cerrar lista"><svg class="ic"><use href="#i-down"/></svg></button></div>
+        <div id="q-list"></div>
+    </div>
+</section>
+
+<!-- Mini reproductor -->
+<div id="mini" class="hidden" data-act="open-player">
+    <img class="cov" id="m-cover" alt="">
+    <div class="tx"><div class="t" id="m-title">—</div><div class="s" id="m-by"></div></div>
+    <button class="mp press" data-act="toggle" aria-label="Reproducir o pausar"><svg class="ic"><use href="#i-play" id="m-play-use"/></svg></button>
+    <button class="mn press" data-act="next" aria-label="Siguiente"><svg class="ic"><use href="#i-next"/></svg></button>
+    <div class="mbar"><i id="m-bar"></i></div>
+</div>
+
+<audio id="audio" playsinline preload="auto" style="display:none"></audio>
+
+<!-- Barra de pestañas Liquid Glass -->
+<nav class="tabbar" aria-label="Navegación principal">
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+        <filter id="lg-wet" x="-8%" y="-12%" width="116%" height="124%" color-interpolation-filters="sRGB">
+            <feTurbulence id="lg-turb" type="fractalNoise" baseFrequency="0.018 0.045" numOctaves="2" seed="7" result="n"/>
+            <feDisplacementMap id="lg-disp" in="SourceGraphic" in2="n" scale="0" xChannelSelector="R" yChannelSelector="G"/>
+        </filter>
+    </svg>
+    <div class="lg-bar" id="lg-bar">
+        <div class="lg-cast"></div>
+        <div class="lg-bg" id="lg-bg"></div>
+        <svg class="lg-edge" id="lg-edge" aria-hidden="true"><polygon id="lg-edge-p" points=""/></svg>
+        <div class="lg-tabs" id="lg-base">
+            <button onclick="switchTab('search')" id="tab-btn-search"><svg viewBox="2.5 2.5 19 19" fill="currentColor"><circle cx="10.6" cy="10.6" r="6.4" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M15.6 15.6L20.6 20.6" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/></svg><span>Buscar</span></button>
+            <button onclick="switchTab('library')" id="tab-btn-library"><svg viewBox="2.5 2.5 19 19" fill="currentColor"><rect x="3.2" y="3.2" width="4.6" height="17.6" rx="1.3"/><rect x="9.6" y="3.2" width="4.6" height="17.6" rx="1.3"/><rect x="15.6" y="4.4" width="4.6" height="16.8" rx="1.3" transform="rotate(-14 17.9 12.8)"/></svg><span>Biblioteca</span></button>
+            <button onclick="switchTab('settings')" id="tab-btn-settings"><svg viewBox="2.5 2.5 19 19" fill="currentColor"><path d="M3.2 6.2h17.6M3.2 12h17.6M3.2 17.8h17.6" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" fill="none"/><circle cx="8" cy="6.2" r="2.7"/><circle cx="16" cy="12" r="2.7"/><circle cx="9.5" cy="17.8" r="2.7"/></svg><span>Ajustes</span></button>
+        </div>
+        <div class="lg-lens lg-flat" id="lg-lens">
+            <div class="lg-clip">
+                <div class="lg-clone" id="lg-clone">
+                    <div class="lg-tabs lg-r" id="lg-r" aria-hidden="true"></div>
+                    <div class="lg-tabs lg-b" id="lg-bl" aria-hidden="true"></div>
+                    <div class="lg-tabs lg-main" id="lg-main" aria-hidden="true"></div>
+                </div>
+                <div class="lg-glare" id="lg-glare"></div>
+            </div>
+            <div class="lg-rim" id="lg-rim"></div>
+        </div>
+    </div>
+</nav>
+<script>
+/* Liquid Glass tab bar v3: cápsula plana en reposo, burbuja de cristal angosta al tocar */
+(function () {
+    var $ = function (id) { return document.getElementById(id); };
+    var bg = $('lg-bg'), edgeP = $('lg-edge-p'), lastShape = '';
+    var bar = $('lg-bar'), base = $('lg-base'), lens = $('lg-lens'), clone = $('lg-clone');
+    var chR = $('lg-r'), chB = $('lg-bl'), main = $('lg-main'), glare = $('lg-glare'), rim = $('lg-rim');
+    var btns = base.querySelectorAll('button');
+    var IDS = Array.prototype.map.call(btns, function (b) { return b.id.replace('tab-btn-', ''); });
+    var N = IDS.length;
+    var html = Array.prototype.map.call(btns, function (b) { return '<span class="lg-tab">' + b.innerHTML + '</span>'; }).join('');
+    [chR, chB, main].forEach(function (c) { c.innerHTML = html; });
+    var layerTabs = [chR, chB, main].map(function (c) { return c.querySelectorAll('.lg-tab'); });
+    [base, chR, chB, main].forEach(function (c) { c.style.gridTemplateColumns = 'repeat(' + N + ', 1fr)'; });
+
+    function ld(k, d) { try { var v = parseFloat(localStorage.getItem(k)); return isFinite(v) ? v : d; } catch (e) { return d; } }
+    function sv(k, v) { try { localStorage.setItem(k, String(v)); } catch (e) {} }
+    var DEF = { mag: 1.3, dis: 1, glr: 1, wet: 1 };
+    var mag = ld('gp-lg-mag', DEF.mag), dis = ld('gp-lg-dis', DEF.dis), glr = ld('gp-lg-glr', DEF.glr), wet = ld('gp-lg-wet', DEF.wet);
+    var clip = lens.querySelector('.lg-clip'), lgDisp = $('lg-disp'), lgTurb = $('lg-turb');
+
+    /* LW = ancho de la gota (angosta, centrada en su pestaña); tabW = ancho de cada pestaña */
+    var W = 0, H = 0, tabW = 0, LW = 0, lensH = 0, PAD = 4, LENS_MAX = 88;
+    var current = 0, x = 0, vx = 0, target = 0, grow = 0, vg = 0, growTarget = 0, dragging = false, raf = 0, last = 0;
+    var flash = 0, gx = 0.3, gy = 0.15, wetApplied = null, lastTurb = 0, lastPx = 0, downAt = 0, lastMoveAt = 0;
+    var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var K = 240, C = reduce ? 40 : 21;
+
+    function xFor(i) { return PAD + i * tabW + (tabW - LW) / 2; }
+    function measure() {
+        W = bar.clientWidth; H = bar.clientHeight;
+        if (!W) return;
+        tabW = (W - PAD * 2) / N; LW = Math.min(tabW, LENS_MAX); lensH = H - PAD * 2;
+        [base, chR, chB, main].forEach(function (t) { t.style.width = W + 'px'; t.style.height = H + 'px'; });
+        lens.style.width = LW + 'px'; lens.style.height = lensH + 'px'; lens.style.borderRadius = (lensH / 2) + 'px';
+        clone.style.width = W + 'px'; clone.style.height = H + 'px';
+        if (!dragging) { x = target = xFor(current); }
+    }
+    function localX(e) { var r = bar.getBoundingClientRect(); return (e.clientX - r.left) * (W / (r.width || 1)); }
+    function clampX(px) { return Math.max(xFor(0), Math.min(xFor(N - 1), px)); }
+    function indexAt(px) { return Math.max(0, Math.min(N - 1, Math.floor((px - PAD) / tabW))); }
+
+    /* El vidrio de la barra se hunde (arriba y abajo) solo bajo la burbuja; los hombros terminan dentro de ella */
+    function shapeBar() {
+        if (!W || !H) return;
+        var pinch = Math.max(0, Math.min(1.1, grow)) * H * 0.09;
+        var lh = LW * (1 + grow * 0.24) / 2, flatH = lh * 0.42, TR = Math.max(8, lh * 0.3);
+        var cx = x + LW / 2, R = H / 2, k, th, px, h, dd, b, o;
+        var xs = [];
+        for (k = 0; k <= 16; k++) { th = (Math.PI / 2) * k / 16; xs.push(R - R * Math.cos(th)); }
+        for (px = R + 3; px < W - R - 1; px += 3) xs.push(px);
+        for (k = 0; k <= 16; k++) { th = (Math.PI / 2) * k / 16; xs.push(W - R + R * Math.sin(th)); }
+        var P = [], Q = [];
+        xs.forEach(function (X) {
+            h = X < R ? Math.sqrt(Math.max(0, R * R - (R - X) * (R - X))) : X > W - R ? Math.sqrt(Math.max(0, R * R - (X - (W - R)) * (X - (W - R)))) : R;
+            dd = Math.abs(X - cx);
+            b = dd <= flatH ? 1 : dd < flatH + TR ? 0.5 * (1 + Math.cos(Math.PI * (dd - flatH) / TR)) : 0;
+            o = pinch * b * (h / R);
+            P.push([X, R - h + o]); Q.push([X, R + h - o]);
+        });
+        var all = P.concat(Q.reverse());
+        var key = all.map(function (q) { return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' ');
+        if (key === lastShape) return;
+        lastShape = key;
+        var cp = 'polygon(' + all.map(function (q) { return q[0].toFixed(1) + 'px ' + q[1].toFixed(1) + 'px'; }).join(',') + ')';
+        bg.style.clipPath = cp; bg.style.webkitClipPath = cp;
+        edgeP.setAttribute('points', key);
+    }
+    function render() {
+        if (!W) return;
+        var stretch = Math.min(Math.abs(vx) / 2600, 0.28);
+        var sx = (1 + grow * 0.24) * (1 + stretch), sy = (1 + grow * 0.23) * (1 - stretch * 0.4);
+        lens.style.transform = 'translate3d(' + x + 'px,0,0) scale(' + sx + ',' + sy + ')';
+        bar.style.transform = 'scale(' + (1 + grow * 0.04) + ')';
+        shapeBar();
+        var ca = dis * (0.3 + grow * 0.5 + Math.min(Math.abs(vx) / 2200, 1.1));
+        chR.style.transform = 'translate(' + (-ca) + 'px,' + (-ca * 0.35) + 'px)';
+        chB.style.transform = 'translate(' + ca + 'px,' + (ca * 0.35) + 'px)';
+        glare.style.setProperty('--gx', (gx * 100) + '%'); glare.style.setProperty('--gy', (gy * 100) + '%');
+        glare.style.opacity = String(Math.min(1, glr * (0.12 + grow * 0.5 + flash * 0.8)));
+        rim.style.setProperty('--ang', (-35 + (x / Math.max(W, 1)) * 70) + 'deg');
+        rim.style.opacity = String(Math.min(0.85, 0.4 + glr * 0.15 + grow * 0.25));
+        /* Lupa solo con dedo: en reposo el ícono está a 1x */
+        var gm = Math.max(0, Math.min(1, grow * 1.4)); var s = (1 + (mag - 1) * gm) * (1 + grow * 0.1);
+        clone.style.transformOrigin = (LW / 2) + 'px ' + (lensH / 2) + 'px';
+        clone.style.transform = 'scale(' + (1 / sx) + ',' + (1 / sy) + ') translate(' + (-x) + 'px,' + (-PAD) + 'px)';
+        /* Íconos base se desvanecen solo bajo la gota; la lente los pinta. Borde casi de corte limpio en reposo, suave solo al arrastrar */
+        var cx = x + LW / 2, half = LW * sx / 2;
+        var inn = half * (1 - (0.06 + 0.44 * Math.max(0, Math.min(1, grow))));
+        var mk = 'linear-gradient(90deg,#000 0,#000 ' + (cx - half) + 'px,transparent ' + (cx - inn) + 'px,transparent ' + (cx + inn) + 'px,#000 ' + (cx + half) + 'px,#000 100%)';
+        base.style.webkitMaskImage = mk; base.style.maskImage = mk;
+        var tk = 'linear-gradient(90deg,transparent 0,transparent ' + (cx - half) + 'px,#000 ' + (cx - inn) + 'px,#000 ' + (cx + inn) + 'px,transparent ' + (cx + half) + 'px,transparent 100%)';
+        clone.style.webkitMaskImage = tk; clone.style.maskImage = tk;
+        /* Lupa: cada ícono crece sobre su propio centro según cuánto lo cubre la gota */
+        for (var li = 0; li < N; li++) {
+            var dd = Math.abs(cx - (xFor(li) + LW / 2)) / tabW;
+            var w = Math.max(0, 1 - dd / 0.85); w = w * w * (3 - 2 * w);
+            var kk = 'scale(' + (1 + (s - 1) * w).toFixed(4) + ')';
+            for (var ly = 0; ly < 3; ly++) layerTabs[ly][li].style.transform = kk;
+        }
+        /* Distorsión de agua: el filtro solo está puesto mientras hay movimiento */
+        var sc = wet > 0 ? wet * (2 + grow * 7 + Math.min(Math.abs(vx) / 220, 6)) : 0;
+        lgDisp.setAttribute('scale', sc.toFixed(2));
+        var wetOn = wet > 0 && sc > 0.35;
+        if (wetOn !== wetApplied) { wetApplied = wetOn; clip.style.filter = wetOn ? 'url(#lg-wet)' : 'none'; }
+        var nowT = performance.now();
+        if (wetOn && nowT - lastTurb > 90) {
+            lastTurb = nowT; var tt = nowT / 900;
+            lgTurb.setAttribute('baseFrequency', (0.018 + 0.004 * Math.sin(tt)).toFixed(4) + ' ' + (0.045 + 0.008 * Math.cos(tt * 1.3)).toFixed(4));
+        }
+    }
+    function step(t) {
+        var dt = Math.min((t - last) / 1000 || 0.016, 0.034); last = t;
+        var ax = -K * (x - target) - C * vx; vx += ax * dt; x += vx * dt;
+        var ag = -300 * (grow - growTarget) - 24 * vg; vg += ag * dt; grow += vg * dt;
+        flash *= Math.exp(-dt * 4.5);
+        try { render(); } catch (err) { /* un error de dibujo no debe congelar la barra */ }
+        var still = Math.abs(vx) < 0.5 && Math.abs(x - target) < 0.1 && Math.abs(vg) < 0.01 && Math.abs(grow - growTarget) < 0.002 && flash < 0.01;
+        if (still && !dragging) { x = target; grow = growTarget; vx = 0; vg = 0; render(); raf = 0; return; }
+        raf = requestAnimationFrame(step);
+    }
+    function kick() { if (!raf) { last = performance.now(); raf = requestAnimationFrame(step); } }
+
+    /* switchTab() llama a esto para que la gota siga a la pestaña activa */
+    window.lgSetTab = function (name) {
+        var i = IDS.indexOf(name); if (i < 0) return;
+        current = i; if (!dragging) { target = xFor(i); kick(); }
+    };
+
+    function updateGlare(e) {
+        var r = bar.getBoundingClientRect();
+        var px = localX(e), py = (e.clientY - r.top) * (H / (r.height || 1));
+        gx = Math.max(0.05, Math.min(0.95, (px - x) / LW));
+        gy = Math.max(0.05, Math.min(0.6, (py - PAD) / lensH));
+    }
+    bar.addEventListener('pointerdown', function (e) {
+        dragging = true;
+        if (raf) { cancelAnimationFrame(raf); raf = 0; }
+        try { bar.setPointerCapture(e.pointerId); } catch (err) {}
+        lens.classList.remove('lg-flat');
+        lastPx = localX(e); downAt = Date.now(); lastMoveAt = downAt;
+        growTarget = 1; flash = 1; target = clampX(lastPx - LW / 2);
+        updateGlare(e); kick();
+    });
+    bar.addEventListener('pointermove', function (e) {
+        if (!dragging) return;
+        lastPx = localX(e); lastMoveAt = Date.now();
+        target = clampX(lastPx - LW / 2);
+        updateGlare(e); kick();
+    });
+    function release(e) {
+        if (!dragging) return;
+        dragging = false; growTarget = 0; gx = 0.3; gy = 0.15;
+        lens.classList.add('lg-flat');
+        var onBar = e && (e.type === 'pointerup' || e.type === 'pointercancel') && e.target && bar.contains(e.target);
+        var i = indexAt(clampX((onBar ? localX(e) : lastPx) - LW / 2) + LW / 2);
+        target = xFor(i);
+        var changed = i !== current;
+        current = i; kick();
+        /* Al tocar cualquier pestaña (también la ya activa) se cierran el álbum y el reproductor */
+        if (typeof window.onBarRelease === 'function') window.onBarRelease(i, changed);
+        /* El contenido pesado se dibuja después de que la gota ya arrancó, para no trabar la animación */
+        if (changed && typeof window.switchTab === 'function') {
+            requestAnimationFrame(function () { setTimeout(function () { if (current === i) window.switchTab(IDS[i]); }, 90); });
+        }
+    }
+    bar.addEventListener('pointerup', release);
+    bar.addEventListener('pointercancel', release);
+    /* Si iOS pierde el "soltar" (por ejemplo al empezar un scroll), la gota quedaba agarrada: se suelta igual */
+    bar.addEventListener('lostpointercapture', release);
+    document.addEventListener('pointerup', release);
+    document.addEventListener('pointercancel', release);
+    document.addEventListener('touchend', release, { passive: true });
+    document.addEventListener('touchcancel', release, { passive: true });
+    window.addEventListener('blur', release);
+    document.addEventListener('visibilitychange', function () { if (document.hidden) release(); });
+    /* Red de seguridad: si sigue agarrada sin que el dedo se mueva por más de 2 s, se suelta */
+    setInterval(function () { if (dragging && Date.now() - downAt > 2000 && Date.now() - lastMoveAt > 2000) release(); }, 500);
+
+    measure(); render();
+    if (window.ResizeObserver) new ResizeObserver(function () { measure(); render(); }).observe(bar);
+    window.addEventListener('resize', function () { measure(); render(); });
+
+    /* Controles en la pantalla de Ajustes */
+    function bindSettings() {
+        var defs = [['mag', 'gp-lg-mag'], ['dis', 'gp-lg-dis'], ['glr', 'gp-lg-glr'], ['wet', 'gp-lg-wet']];
+        function cur(k) { return k === 'mag' ? mag : k === 'dis' ? dis : k === 'glr' ? glr : wet; }
+        function put(k, v) { if (k === 'mag') mag = v; else if (k === 'dis') dis = v; else if (k === 'glr') glr = v; else wet = v; }
+        function show(k) { var el = $('lg-' + k), o = $('lg-' + k + '-out'); if (el) el.value = cur(k); if (o) o.textContent = cur(k).toFixed(2) + '×'; }
+        defs.forEach(function (d) {
+            var k = d[0], el = $('lg-' + k); if (!el) return;
+            show(k);
+            el.addEventListener('input', function (e) {
+                put(k, parseFloat(e.target.value)); sv(d[1], cur(k)); show(k);
+                if (k === 'glr') flash = 1;
+                render(); kick();
+            });
+        });
+        var rs = $('lg-reset');
+        if (rs) rs.addEventListener('click', function () {
+            defs.forEach(function (d) { put(d[0], DEF[d[0]]); sv(d[1], DEF[d[0]]); show(d[0]); });
+            flash = 1; render(); kick();
+        });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindSettings); else bindSettings();
+    window.lgBindSettings = bindSettings;
+})();
+</script>
+<script>
+(function () {
+'use strict';
+const $ = id => document.getElementById(id);
+const IA = 'https://archive.org';
+const SILENT = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGFtZTMuOTguNFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/gQCkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGgAAAAAAGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABf/gQCkAxAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGgAAAAAAGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABf/gQCkExAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGgAAAAAAGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABf/gQCkUxAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGgAAAAAAGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';   /* mp3 diminuto en silencio: "desbloquea" el <audio> de iOS con el primer toque */
+
+/* ───────── Guardado ───────── */
+function lsGet(k, d) { try { const v = localStorage.getItem('musica_diego_' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
+function lsSet(k, v) { try { localStorage.setItem('musica_diego_' + k, JSON.stringify(v)); } catch (e) {} }
+const S = {
+    quality: lsGet('quality', 'mp3'), theme: lsGet('theme', 'dark'), waveOn: lsGet('waveOn', true),
+    waveStyle: lsGet('waveStyle', 'bars'), waveColor: lsGet('waveColor', 'orange'),
+    favs: lsGet('favs', []), recents: lsGet('recents', []), searches: lsGet('searches', [])
+};
+if (!Array.isArray(S.searches)) S.searches = [];
+if (!Array.isArray(S.favs)) S.favs = [];
+if (!Array.isArray(S.recents)) S.recents = [];
+
+/* ───────── Utilidades ───────── */
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const first = v => Array.isArray(v) ? v[0] : v;
+function fmt(t) {
+    if (!isFinite(t) || t < 0) t = 0; t = Math.floor(t);
+    const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60;
+    return h ? h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s : m + ':' + (s < 10 ? '0' : '') + s;
+}
+function stripHtml(h) {
+    try {
+        const s = String(h || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li)>/gi, '\n');
+        const doc = new DOMParser().parseFromString(s, 'text/html');   /* no ejecuta scripts ni carga recursos */
+        return (doc.body.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
+    } catch (e) { return ''; }
+}
+function safeDecode(s) { try { return decodeURIComponent(s); } catch (e) { return s; } }
+function ph(seed) {
+    let h = 0; const s = String(seed || '');
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(' + h + ',55%,38%)"/><stop offset="1" stop-color="hsl(' + ((h + 50) % 360) + ',60%,16%)"/></linearGradient></defs><rect width="100" height="100" fill="url(#g)"/><g fill="#fff" opacity=".6"><circle cx="40" cy="68" r="10"/><rect x="47" y="28" width="5" height="40"/><path d="M52 28q18 4 20 20-10-8-20-8z"/></g></svg>';
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+const coverUrl = id => IA + '/services/img/' + encodeURIComponent(id);
+const dl = (id, name) => IA + '/download/' + encodeURIComponent(id) + '/' + name.split('/').map(encodeURIComponent).join('/');
+/* Si una portada no carga, se pone una de colores generada en el momento */
+document.addEventListener('error', e => {
+    const t = e.target;
+    if (t && t.tagName === 'IMG' && t.dataset && t.dataset.ph && t.src.indexOf('data:') !== 0) t.src = ph(t.dataset.ph);
+}, true);
+let toastT;
+function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2600); }
+const setUse = (el, id) => { if (el) el.setAttribute('href', '#' + id); };
+const yearOf = d => (d.year || String(d.date || '').slice(0, 4) || '');
+
+/* ───────── Tema ───────── */
+function applyTheme() {
+    const dark = S.theme === 'dark' || (S.theme === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.classList.toggle('dark', dark);
+    const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', dark ? '#050508' : '#f2f2f7');
+}
+if (window.matchMedia) { try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (S.theme === 'auto') applyTheme(); }); } catch (e) {} }
+
+/* ───────── Formatos que este dispositivo reproduce ───────── */
+const AU = document.createElement('audio');
+const CAN = {
+    mp3: !!AU.canPlayType('audio/mpeg'),
+    flac: !!(AU.canPlayType('audio/flac') || AU.canPlayType('audio/x-flac')),
+    ogg: !!AU.canPlayType('audio/ogg; codecs="vorbis"')
+};
+
+/* ───────── Internet Archive: búsqueda ───────── */
+/* Filtros: el primero es como busca la propia web de archive.org (sin restricción alguna);
+   en la portada sin texto siempre se muestra audio popular para que la app siga siendo de música */
+const FILTERS = [
+    { id: 'web', label: 'Todo el audio', q: '' },
+    { id: 'live', label: 'Conciertos en vivo', q: 'collection:etree' },
+    { id: 'music', label: 'Música', q: 'collection:audio_music' },
+    { id: '78', label: 'Discos 78 rpm', q: 'collection:78rpm' },
+    { id: 'net', label: 'Netlabels', q: 'collection:netlabels' }
+];
+/* Órdenes, iguales a los de la web de archive.org (las 9 del menú “Sort by”, con sentido asc/desc como ahí) */
+const SORTS = [
+    { id: 'rel', label: 'Relevancia', f: null, def: 'desc' },
+    { id: 'views', label: 'Más vistas', f: 'downloads', def: 'desc' },
+    { id: 'week', label: 'Vistas de la semana', f: 'week', def: 'desc' },
+    { id: 'title', label: 'Título A-Z', f: 'titleSort', def: 'asc' },
+    { id: 'date', label: 'Fecha de publicación', f: 'date', def: 'desc' },
+    { id: 'arch', label: 'Fecha de archivo', f: 'publicdate', def: 'desc' },
+    { id: 'review', label: 'Fecha de reseña', f: 'reviewdate', def: 'desc' },
+    { id: 'added', label: 'Fecha de alta', f: 'addeddate', def: 'desc' },
+    { id: 'creator', label: 'Creador A-Z', f: 'creatorSort', def: 'asc' }
+];
+const st = { q: '', filter: 'web', sort: null, dir: 'desc', page: 1, total: 0, loading: false, err: false, adv: false, broad: false, fetched: 0, items: [], req: 0 };
+const effSort = () => st.sort ? ((st.sort === 'rel' && !st.q) ? 'views' : st.sort) : (st.q ? 'rel' : 'views');
+
+function renderChips() {
+    $('chips').innerHTML = FILTERS.map(f => '<button class="chip' + (f.id === st.filter ? ' on' : '') + '" data-act="filter" data-val="' + f.id + '">' + esc(f.label) + '</button>').join('');
+    const es = effSort();
+    const lbl = s => {
+        if (s.id === 'title') return es === 'title' && st.dir === 'desc' ? 'Título Z-A' : 'Título A-Z';
+        if (s.id === 'creator') return es === 'creator' && st.dir === 'desc' ? 'Creador Z-A' : 'Creador A-Z';
+        return s.label;
+    };
+    let h = SORTS.map(s => '<button class="chip' + (s.id === es ? ' on' : '') + '" data-act="sort" data-val="' + s.id + '">' + esc(lbl(s)) + '</button>').join('');
+    if (es !== 'rel') h += '<button class="chip" data-act="dir">' + (st.dir === 'asc' ? '\u2191 Menor a mayor' : '\u2193 Mayor a menor') + '</button>';
+    $('sorts').innerHTML = h;
+}
+/* Consulta avanzada escrita a mano (campo:valor) o pegada desde un enlace de búsqueda de archive.org */
+const FIELDS_OK = 'creator|title|collection|mediatype|subject|description|date|year|identifier|language|publicdate|addeddate|downloads|access-restricted-item';
+const FIELD_Q = new RegExp('^\\s*\\(*(' + FIELDS_OK + ')\\s*:\\s*\\S', 'i');
+/* Búsqueda enfocada en campos: TODAS las palabras tienen que aparecer de verdad en el ARTISTA,
+   el TÍTULO o las ETIQUETAS (subject, donde quedan los nombres de quien subió o participó),
+   cada una en cualquiera de esos tres campos. Antes bastaba una sola palabra y “Los Tres
+   Unplugged” llenaba la pantalla con Los Lobos (solo coincidía “los”). Las tildes se ignoran
+   al buscar (mana encuentra a Maná), igual que hace la web de archive.org; la ñ se conserva. */
+function foldAcc(s) {
+    return String(s)
+        .replace(/[áàäâã]/g, 'a').replace(/[éèëê]/g, 'e').replace(/[íìïî]/g, 'i')
+        .replace(/[óòöôõ]/g, 'o').replace(/[úùüû]/g, 'u').replace(/ç/g, 'c');
+}
+function smartQuery(t, broad) {
+    const w = foldAcc(t).split(/\s+/).filter(Boolean).slice(0, 8);
+    if (!w.length) return '';
+    /* Modo preciso (el de entrada): solo ítems cuyo ARTISTA es esa frase, igual que creator:"Los Tres" en la web de archive.org */
+    if (!broad) {
+        const ph = '"' + w.join(' ') + '"';
+        return w.length === 2 ? '(creator:' + ph + ' OR creator:"' + w[1] + ' ' + w[0] + '")' : '(creator:' + ph + ')';
+    }
+    const any = x => '(creator:' + x + ' OR title:' + x + ' OR subject:' + x + ')';
+    const words = w.map(any).join(' AND ');
+    /* La frase exacta (“chris cornell”, “los tres”) se busca aparte y con más peso en el artista, el título,
+       las etiquetas y también la descripción (muchos conciertos ponen al artista solo ahí). Así aparece todo
+       lo de esa banda y primero lo más relevante; las palabras sueltas quedan como respaldo. */
+    const p = '"' + w.join(' ') + '"';
+    return '(creator:' + p + '^10 OR subject:' + p + '^5 OR title:' + p + '^4 OR description:' + p + '^1 OR (' + words + '))';
+}
+function buildQuery() {
+    const f = FILTERS.find(x => x.id === st.filter) || FILTERS[0];
+    const notRestr = 'AND NOT access-restricted-item:true';
+    if (st.adv && st.q.trim()) {
+        const base = st.q.trim();
+        const own = /(collection|mediatype)\s*:/.test(base);   /* la consulta ya trae su propio filtro */
+        return '(' + base + ')' + ((own || !f.q) ? ' ' : ' AND (' + f.q + ') ') + notRestr;
+    }
+    const clean = st.q.replace(/[+\-&|!(){}\[\]^"~*?:\\\/]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (clean) return smartQuery(clean, st.broad) + ' AND (' + (f.q || 'mediatype:(audio OR etree)') + ') ' + notRestr;   /* app de música: siempre solo audio */
+    /* portada sin texto: siempre lo más escuchado del audio, aunque el chip sea “Toda la web” */
+    return '(' + (f.q || 'mediatype:(audio OR etree)') + ') ' + notRestr;
+}
+const normName = s => foldAcc(String(s).toLowerCase()).replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9ñ]+/g, ' ').trim();
+const strictOn = () => !!(st.q && !st.adv && !st.broad);
+function creatorOk(d) {
+    const name = normName(st.q), w = name.split(' ');
+    const alts = [name]; if (w.length === 2) alts.push(w[1] + ' ' + w[0]);
+    const list = Array.isArray(d.creator) ? d.creator : (d.creator ? [d.creator] : []);
+    return list.some(c => String(c).split(/\s*(?:[;\/&]|\band\b|\by\b| - )\s*/i).concat([String(c)]).some(p => alts.indexOf(normName(p)) >= 0));
+}
+function doSearch(reset) {
+    if (reset) { st.page = 1; st.items = []; st.total = 0; st.fetched = 0; }
+    const id = ++st.req; st.loading = true; st.err = false; renderResults();
+    const p = new URLSearchParams();
+    p.set('q', buildQuery());
+    ['identifier', 'title', 'creator', 'year', 'date', 'downloads'].forEach(x => p.append('fl[]', x));
+    p.set('rows', '50'); p.set('page', String(st.page)); p.set('output', 'json');
+    const sd = SORTS.find(s => s.id === effSort()) || {}; if (sd.f) p.append('sort[]', sd.f + ' ' + st.dir);
+    fetch(IA + '/advancedsearch.php?' + p.toString())
+        .then(r => { if (!r.ok) { const e = new Error('http ' + r.status); e.http = true; throw e; } return r.text(); })
+        .then(t => { try { return JSON.parse(t); } catch (e) { const er = new Error('json'); er.http = true; throw er; } })
+        .then(j => {
+            if (id !== st.req) return;
+            const rs = j.response || {}; let docs = rs.docs || [];
+            st.total = rs.numFound || 0; st.fetched += docs.length;
+            const exhausted = !docs.length || st.fetched >= st.total;
+            /* La propia web de archive.org mezcla ítems de otros artistas (Los Tres Cuervos, Los Tres Ases…):
+               en modo preciso solo se dejan los que de verdad tienen ese nombre como artista */
+            if (strictOn()) docs = docs.filter(creatorOk);
+            if (!docs.length && !exhausted && strictOn()) { st.page++; doSearch(false); return; }   /* página sin ninguno: pide la siguiente */
+            if (!docs.length && !st.items.length && exhausted && st.q && !st.adv && !st.broad) { st.broad = true; doSearch(true); return; }   /* nada como artista: se amplía solo */
+            const have = {}; st.items.forEach(d => { have[d.identifier] = 1; });
+            docs.forEach(d => { if (d.identifier && !have[d.identifier]) st.items.push(d); });
+            st.loading = false; renderResults();
+        })
+        .catch(err => { if (id !== st.req) return; if (st.page > 1 && !reset) st.page--;
+            /* si el servidor rechaza el orden elegido (y no es un fallo de red), se reintenta con relevancia */
+            if (err && err.http && sd.f && st.sort) { toast('Ese orden no está disponible ahora, uso relevancia'); st.sort = null; renderChips(); doSearch(true); return; }
+            st.loading = false; st.err = true; renderResults(); });
+}
+function resLabel() {
+    const f = FILTERS.find(x => x.id === st.filter) || FILTERS[0];
+    if (st.q) { const n = strictOn() ? st.items.length + (st.fetched < st.total ? '+' : '') : (st.total ? st.total.toLocaleString('es-CL') : ''); return 'Resultados' + (n ? ' · ' + n : ''); }
+    return st.filter === 'web' ? 'Lo más escuchado' : 'Populares · ' + f.label;
+}
+function rowHtml(d) {
+    const sub = [first(d.creator) || '', yearOf(d)].filter(Boolean).join(' · ');
+    return '<div class="row" data-act="open" data-id="' + esc(d.identifier) + '"><img class="cov" loading="lazy" data-ph="' + esc(d.identifier) + '" src="' + esc(coverUrl(d.identifier)) + '" alt="">' +
+        '<div class="tx"><div class="t">' + esc(first(d.title) || d.identifier) + '</div><div class="s">' + esc(sub) + '</div></div></div>';
+}
+function renderResults() {
+    $('res-lbl').textContent = resLabel();
+    let h = st.items.map(rowHtml).join('');
+    if (st.loading) h += '<div class="spin"></div>';
+    else if (st.err) h += '<div class="errbox">No pude conectar con Internet Archive.<br>Revisa tu conexión e inténtalo de nuevo.<br><button class="pill glass press" data-act="retry">Reintentar</button></div>';
+    else if (!st.items.length) {
+        const f = FILTERS.find(x => x.id === st.filter) || FILTERS[0];
+        const rescue = (f.q && st.q) ? '<br><button class="pill glass press" data-act="tryweb" style="margin:.7rem 0 0">Buscar en Todo el audio</button>' : '';
+        h += '<div class="empty">Sin resultados' + (st.q ? ' para “' + esc(st.q) + '”' : '') + (f.q ? ' en ' + esc(f.label) : '') +
+            '.<br>Prueba con menos palabras o solo con el nombre de la banda.' + rescue + '</div>';
+    }
+    $('results').innerHTML = h;
+    renderSaved();
+    const hasMore = !st.loading && !st.err && st.items.length && st.fetched < st.total;
+    const canBroad = !st.loading && !st.err && !hasMore && st.items.length && st.q && !st.adv && !st.broad;
+    $('more').innerHTML = hasMore ? '<button class="pill glass press" data-act="more" style="margin:1rem 0">Cargar más</button>'
+        : canBroad ? '<div class="empty" style="padding:1rem">Esto es todo lo que tiene exactamente a “' + esc(st.q) + '” como artista.<br><button class="pill glass press" data-act="broad">Ver también similares y menciones</button></div>' : '';
+}
+/* Detecta enlaces pegados de archive.org: ítem directo o página de búsqueda */
+function parsePasted(v) {
+    const mi = /archive\.org\/(?:details|download|embed)\/([^\/?#\s]+)/i.exec(v);
+    if (mi) return { type: 'item', id: safeDecode(mi[1]) };
+    if (/archive\.org[^\s]*\/search(\.php)?\b/i.test(v)) {
+        const qi = v.indexOf('?');
+        if (qi >= 0) {
+            const p = new URLSearchParams(v.slice(qi + 1).replace(/#.*$/, ''));
+            const qq = (p.get('query') || p.get('q') || '').trim();
+            if (qq) return { type: 'search', q: qq };   /* ej. query=creator%3A%22Metallica%22 → creator:"Metallica" */
+        }
+        return { type: 'none' };
+    }
+    return null;
+}
+function commitQuery(v) {
+    v = v.trim();
+    if (!v) { if (st.q || st.adv) { st.q = ''; st.adv = false; renderChips(); doSearch(true); } return; }
+    const p = parsePasted(v);
+    if (p && p.type === 'item') { openAlbum(p.id); return; }
+    if (p && p.type === 'none') { toast('Ese enlace de búsqueda no trae consulta'); return; }
+    let adv = false, q = v;
+    if (p && p.type === 'search') {
+        adv = true; q = p.q;
+        if (qEl.value !== q) qEl.value = q;   /* muestra la consulta limpia, no la URL */
+        $('searchbox').classList.add('has');
+    } else if (FIELD_Q.test(v)) {
+        const par = (v.match(/\(/g) || []).length - (v.match(/\)/g) || []).length;
+        if ((v.split('"').length - 1) % 2 || par > 0) return;   /* consulta a medias (comillas o paréntesis abiertos): espera */
+        adv = true;
+    }
+    if (q === st.q && adv === st.adv) return;
+    st.q = q; st.adv = adv; st.broad = false; renderChips(); doSearch(true);
+}
+
+/* ───────── Internet Archive: ítem y pistas ───────── */
+const cache = {};
+function kindOf(f) {
+    const fm = String(f.format || '').toLowerCase(), n = String(f.name || '').toLowerCase();
+    if (!/\.(mp3|flac|ogg|oga)$/.test(n)) return null;
+    if (/flac/.test(fm) || /\.flac$/.test(n)) return 'flac';
+    if (/mp3/.test(fm) || /\.mp3$/.test(n)) return 'mp3';
+    if (/vorbis|ogg/.test(fm) || /\.(ogg|oga)$/.test(n)) return 'ogg';
+    return null;
+}
+function rankOf(f, k) {
+    const fm = String(f.format || '').toLowerCase();
+    if (k === 'mp3') return /64kbps/.test(fm) ? 1 : /128kbps/.test(fm) ? 2 : 3;
+    if (k === 'flac') return /24bit/.test(fm) ? 1 : 2;
+    return 1;
+}
+function parseLen(v) {
+    if (v == null || v === '') return 0; const s = String(v);
+    if (s.indexOf(':') >= 0) { let t = 0; s.split(':').forEach(n => { t = t * 60 + (parseFloat(n) || 0); }); return t; }
+    const n = parseFloat(s); return isFinite(n) ? n : 0;
+}
+function parseTrack(v) { const n = parseInt(String(v || '').split('/')[0], 10); return isFinite(n) ? n : 0; }
+function cleanTitle(s) { return String(s || '').replace(/\.(mp3|flac|ogg|oga)$/i, '').replace(/_/g, ' ').trim() || 'Pista'; }
+function parseItem(id, j) {
+    if (!j || (!j.metadata && !j.files)) throw new Error('nodata');
+    const md = j.metadata || {};
+    const it = {
+        id, title: first(md.title) || id,
+        creator: Array.isArray(md.creator) ? md.creator.join(', ') : (md.creator || ''),
+        date: String(first(md.date) || first(md.year) || '').slice(0, 10),
+        desc: stripHtml(Array.isArray(md.description) ? md.description.join('\n') : (md.description || '')),
+        restricted: String(md['access-restricted-item']).toLowerCase() === 'true' || !!j.is_dark,
+        byKind: { mp3: {}, flac: {}, ogg: {} }
+    };
+    (j.files || []).forEach(f => {
+        const k = kindOf(f); if (!k || !CAN[k] || String(f.private) === 'true') return;
+        const base = f.name.replace(/\.[^.\/]+$/, ''), rank = rankOf(f, k), cur = it.byKind[k][base];
+        if (cur && cur.rank >= rank) return;
+        it.byKind[k][base] = { name: f.name, base, title: f.title || '', length: parseLen(f.length), track: parseTrack(f.track), rank };
+    });
+    return it;
+}
+function fetchItem(id) {
+    if (cache[id]) return Promise.resolve(cache[id]);
+    return fetch(IA + '/metadata/' + encodeURIComponent(id)).then(r => { if (!r.ok) throw new Error('http'); return r.json(); })
+        .then(j => (cache[id] = parseItem(id, j)));
+}
+function buildTracks(it) {
+    const order = S.quality === 'flac' ? ['flac', 'mp3', 'ogg'] : ['mp3', 'flac', 'ogg'];
+    let primary = null;
+    order.forEach(k => { if (!primary && Object.keys(it.byKind[k]).length) primary = k; });
+    if (!primary) return [];
+    const list = Object.keys(it.byKind[primary]).map(b => it.byKind[primary][b]);
+    const hasT = list.every(f => f.track > 0);
+    list.sort((a, b) => (hasT && a.track !== b.track) ? a.track - b.track : a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+    return list.map(f => {
+        const alts = {};
+        ['mp3', 'flac', 'ogg'].forEach(k => { if (k !== primary && it.byKind[k][f.base]) alts[k] = dl(it.id, it.byKind[k][f.base].name); });
+        return { title: f.title ? f.title : cleanTitle(f.name.split('/').pop()), dur: f.length, kind: primary, url: dl(it.id, f.name), alts, tried: {} };
+    });
+}
+
+/* ───────── Estado del reproductor ───────── */
+const audio = $('audio');
+let item = null, tracks = [], idx = -1, playing = false, shuffle = !!lsGet('shuffle', false), repeat = lsGet('repeat', 0) | 0;
+let bag = [], unlocked = false, silentPhase = false, pending = null, failCount = 0, seeking = false;
+let lastSave = 0, lastPos = 0, playerOpen = false, albumOpen = false;
+let albumId = null, albumItem = null, albumTracks = [], albumHead = {};
+let sleepI = 0, sleepEnd = 0;
+const SLEEPS = [0, 15, 30, 60];
+
+function unlock() {
+    if (unlocked) return; unlocked = true; silentPhase = true;
+    try { audio.src = SILENT; const p = audio.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+}
+function touchRecent(reset) {
+    if (!item || silentPhase) return;
+    const e = { id: item.id, title: item.title, creator: item.creator, date: item.date, idx: reset ? 0 : idx, time: reset ? 0 : (audio.currentTime || 0), dur: reset ? 0 : (audio.duration || 0), tn: tracks.length, ts: Date.now() };
+    S.recents = [e].concat(S.recents.filter(r => r.id !== e.id)).slice(0, 40);
+    lsSet('recents', S.recents);
+}
+function allIdx(except) { const a = []; for (let i = 0; i < tracks.length; i++) if (i !== except) a.push(i); return a; }
+function nextIdx(fromEnded) {
+    if (repeat === 2 && fromEnded) return idx;
+    if (shuffle) {
+        if (!bag.length) { if (repeat === 1 || !fromEnded) bag = allIdx(idx); else return -1; }
+        if (!bag.length) return -1;
+        return bag.splice(Math.floor(Math.random() * bag.length), 1)[0];
+    }
+    const n = idx + 1; if (n < tracks.length) return n;
+    return (repeat === 1 || !fromEnded) ? 0 : -1;
+}
+function startPlayback(it, list, i, t0) {
+    item = it; tracks = list; pending = null; failCount = 0;
+    bag = shuffle ? allIdx(i) : [];
+    loadTrack(i, true, t0 || 0);
+    updateMini(); updateFavUI(); renderQueue();
+}
+function loadTrack(i, auto, t0) {
+    if (i < 0 || i >= tracks.length) return;
+    idx = i; const t = tracks[i]; silentPhase = false; unlocked = true;
+    audio.src = t.url;
+    if (t0 > 0) { const once = () => { audio.removeEventListener('loadedmetadata', once); try { audio.currentTime = t0; } catch (e) {} }; audio.addEventListener('loadedmetadata', once); }
+    if (auto) { const p = audio.play(); if (p && p.catch) p.catch(() => { toast('Toca ▶ para continuar'); setPlayingUI(false); }); }
+    updateTrackUI(); touchRecent(); msMeta();
+}
+function toggle() {
+    unlock();
+    if (!item) { if (pending) resumeRecent(pending); return; }
+    if (audio.paused) { const p = audio.play(); if (p && p.catch) p.catch(() => {}); } else audio.pause();
+}
+function goNext() { if (!item) return; const n = nextIdx(false); if (n >= 0) loadTrack(n, true); }
+function goPrev() {
+    if (!item) return;
+    if ((audio.currentTime || 0) > 3) { audio.currentTime = 0; return; }
+    let p = idx - 1; if (p < 0) p = repeat === 1 ? tracks.length - 1 : 0;
+    loadTrack(p, true);
+}
+function skip(s) { if (!item) return; const d = audio.duration; let t = (audio.currentTime || 0) + s; if (isFinite(d)) t = Math.min(t, d - 0.5); try { audio.currentTime = Math.max(0, t); } catch (e) {} }
+function resumeRecent(e) {
+    unlock();
+    fetchItem(e.id).then(it => {
+        const list = buildTracks(it);
+        if (!list.length) { toast('Este ítem no tiene pistas reproducibles'); return; }
+        startPlayback(it, list, Math.min(e.idx || 0, list.length - 1), e.time || 0);
+    }).catch(() => { toast('No pude cargar el álbum'); setPlayingUI(false); });
+}
+
+/* ───────── Eventos del <audio> ───────── */
+audio.addEventListener('play', () => { if (!silentPhase) setPlayingUI(true); });
+audio.addEventListener('pause', () => { if (silentPhase || audio.ended) return; setPlayingUI(false); touchRecent(); });
+audio.addEventListener('playing', () => { failCount = 0; $('p-play').classList.remove('buf'); });
+audio.addEventListener('waiting', () => { if (!silentPhase) $('p-play').classList.add('buf'); });
+audio.addEventListener('canplay', () => $('p-play').classList.remove('buf'));
+audio.addEventListener('loadedmetadata', () => { if (!silentPhase) { updateProgress(); setPos(); } });
+audio.addEventListener('durationchange', () => { if (!silentPhase) { updateProgress(); setPos(); } });
+audio.addEventListener('timeupdate', () => {
+    if (silentPhase || !tracks.length) return;
+    const now = Date.now();
+    if (!seeking) updateProgress();
+    if (now - lastSave > 5000) { lastSave = now; touchRecent(); updContBar(); }
+    if (now - lastPos > 1000) { lastPos = now; setPos(); }
+    if (sleepEnd && now >= sleepEnd) { sleepEnd = 0; sleepI = 0; audio.pause(); updateSleepUI(); toast('Temporizador: música pausada'); }
+});
+audio.addEventListener('ended', () => {
+    if (silentPhase) return;
+    const n = nextIdx(true);
+    if (n < 0) { setPlayingUI(false); touchRecent(true); return; }
+    loadTrack(n, true);
+});
+audio.addEventListener('error', () => {
+    if (silentPhase || !tracks.length) return;
+    const t = tracks[idx]; if (!t) return;
+    t.tried[t.kind] = 1;
+    const alt = Object.keys(t.alts).filter(k => !t.tried[k])[0];
+    if (alt) { t.url = t.alts[alt]; t.kind = alt; loadTrack(idx, true, 0); return; }
+    failCount++;
+    if (failCount <= 3 && idx + 1 < tracks.length) { toast('Esa pista no se pudo reproducir, paso a la siguiente'); loadTrack(idx + 1, true); }
+    else { toast('No se pudo reproducir'); setPlayingUI(false); }
+});
+
+/* ───────── Pantalla de bloqueo (Media Session) ───────── */
+function msMeta() {
+    if (!('mediaSession' in navigator) || !item) return;
+    try {
+        const t = tracks[idx];
+        navigator.mediaSession.metadata = new MediaMetadata({ title: t ? t.title : item.title, artist: item.creator || '', album: item.title, artwork: [{ src: coverUrl(item.id) }] });
+    } catch (e) {}
+}
+function setPos() {
+    try { if ('mediaSession' in navigator && isFinite(audio.duration) && audio.duration > 0) navigator.mediaSession.setPositionState({ duration: audio.duration, playbackRate: audio.playbackRate || 1, position: Math.min(audio.currentTime || 0, audio.duration) }); } catch (e) {}
+}
+if ('mediaSession' in navigator) {
+    const h = (a, f) => { try { navigator.mediaSession.setActionHandler(a, f); } catch (e) {} };
+    h('play', () => { if (!item && pending) resumeRecent(pending); else { const p = audio.play(); if (p && p.catch) p.catch(() => {}); } });
+    h('pause', () => audio.pause());
+    h('previoustrack', goPrev); h('nexttrack', goNext);
+    h('seekbackward', d => skip(-((d && d.seekOffset) || 15)));
+    h('seekforward', d => skip((d && d.seekOffset) || 15));
+    h('seekto', d => { if (d && typeof d.seekTime === 'number') { try { audio.currentTime = d.seekTime; } catch (e) {} } });
+}
+
+/* ───────── Interfaz del reproductor ───────── */
+function setPlayingUI(p) {
+    playing = p;
+    const id = p ? 'i-pause' : 'i-play';
+    setUse($('p-play-use'), id); setUse($('m-play-use'), id);
+    document.querySelectorAll('.eq').forEach(e => e.classList.toggle('paused', !p));
+    if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = p ? 'playing' : 'paused'; } catch (e) {} }
+    ensureWave();
+}
+function updateProgress() {
+    const cur = audio.currentTime || 0; let dur = audio.duration;
+    if (!isFinite(dur) || dur <= 0) dur = (tracks[idx] && tracks[idx].dur) || 0;
+    const v = dur ? Math.min(1000, cur / dur * 1000) : 0;
+    const sk = $('seek'); sk.value = v; sk.style.setProperty('--p', (v / 10) + '%');
+    $('t-cur').textContent = fmt(cur); $('t-dur').textContent = dur ? fmt(dur) : '0:00';
+    $('m-bar').style.width = (v / 10) + '%';
+}
+function updContBar() {
+    const e = S.recents[0], b = document.querySelector('#home-cont .bar i');
+    if (e && b) b.style.width = (e.dur ? Math.min(100, e.time / e.dur * 100) : 0) + '%';
+}
+function updateTrackUI() {
+    if (!item) return;
+    const t = tracks[idx] || {};
+    $('p-title').textContent = t.title || item.title;
+    const by = $('p-by'); by.textContent = item.creator || ''; markArtist(by, item.creator || '');
+    $('p-alb').textContent = item.title;
+    const c = coverUrl(item.id), pc = $('p-cover'); pc.dataset.ph = item.id; if (pc.getAttribute('src') !== c) pc.src = c;
+    $('pbg').style.backgroundImage = "url('" + c + "')";
+    updMiniText(); highlightRows(); updateProgress();
+}
+function updMiniText() {
+    const mc = $('m-cover');
+    if (item) {
+        const t = tracks[idx] || {}; $('m-title').textContent = t.title || item.title; $('m-by').textContent = item.creator || item.title;
+        mc.dataset.ph = item.id; mc.src = coverUrl(item.id);
+    } else if (pending) {
+        $('m-title').textContent = pending.title || pending.id; $('m-by').textContent = pending.creator || '';
+        mc.dataset.ph = pending.id; mc.src = coverUrl(pending.id);
+    }
+}
+function updateMini() { updMiniText(); $('mini').classList.toggle('hidden', !(item || pending)); }
+function highlightRows() {
+    document.querySelectorAll('[data-trk]').forEach(r => {
+        const own = r.dataset.trk === 'q' ? (item && tracks) : (albumItem && albumTracks);
+        const isCur = item && own && r.dataset.trk === 'q' ? Number(r.dataset.i) === idx : (item && albumItem && item.id === albumItem.id && tracks === albumTracks && Number(r.dataset.i) === idx);
+        r.classList.toggle('cur', !!isCur);
+        const n = r.querySelector('.n'); const i = Number(r.dataset.i);
+        n.innerHTML = isCur ? '<span class="eq' + (playing ? '' : ' paused') + '"><i></i><i></i><i></i></span>' : String(i + 1);
+    });
+}
+function trkHtml(t, i, kind) {
+    return '<div class="trk" data-act="' + (kind === 'q' ? 'playq' : 'playtrack') + '" data-trk="' + kind + '" data-i="' + i + '"><span class="n">' + (i + 1) + '</span><span class="tt">' + esc(t.title) + '</span><span class="d">' + (t.dur ? fmt(t.dur) : '') + '</span></div>';
+}
+function renderQueue() { $('q-list').innerHTML = tracks.map((t, i) => trkHtml(t, i, 'q')).join(''); highlightRows(); }
+function updShuffleUI() { $('b-shuffle').classList.toggle('on', shuffle); }
+function updRepeatUI() {
+    $('b-repeat').classList.toggle('on', repeat > 0);
+    setUse($('b-repeat-use'), repeat === 2 ? 'i-repeat1' : 'i-repeat');
+    $('b-repeat-t').textContent = repeat === 0 ? 'Repetir' : repeat === 1 ? 'Todo' : 'Una';
+}
+function updateSleepUI() {
+    const m = SLEEPS[sleepI]; $('b-sleep').classList.toggle('on', m > 0); $('b-sleep-t').textContent = m ? m + ' min' : 'Dormir';
+}
+
+/* ───────── Hojas y pestañas ───────── */
+function setSheet(id, on) { $(id).classList.toggle('on', on); }
+function openPlayer() { if (!item) return; updateTrackUI(); setSheet('sheet-player', true); playerOpen = true; ensureWave(); updateProgress(); }
+function closeQueue() { $('queue').classList.remove('on'); }
+function closePlayer() { closeQueue(); setSheet('sheet-player', false); playerOpen = false; }
+function closeOverlays() { closePlayer(); setSheet('sheet-album', false); albumOpen = false; }
+const TABS = ['search', 'library', 'settings'];
+function switchTab(n) {
+    if (TABS.indexOf(n) < 0) return;
+    TABS.forEach(t => $('view-' + t).classList.toggle('on', t === n));
+    closeOverlays();
+    if (window.lgSetTab) window.lgSetTab(n);
+    if (n === 'library') renderLibrary();
+    if (n === 'search') { renderCont(); }
+}
+window.switchTab = switchTab;
+window.onBarRelease = () => { if (playerOpen || albumOpen) closeOverlays(); };
+
+/* ───────── Álbum ───────── */
+function isFav(id) { return S.favs.some(f => f.id === id); }
+function updateFavUI() {
+    setUse($('al-fav').querySelector('use'), isFav(albumId) ? 'i-heartf' : 'i-heart');
+    setUse($('p-fav').querySelector('use'), item && isFav(item.id) ? 'i-heartf' : 'i-heart');
+}
+/* El nombre del artista queda pulsable (en el álbum y en el reproductor): busca todo lo de esa banda o persona */
+function markArtist(el, name) {
+    if (name) { el.dataset.act = 'artist'; el.dataset.val = name; el.setAttribute('title', 'Ver todo de ' + name); }
+    else { el.removeAttribute('data-act'); el.removeAttribute('data-val'); el.removeAttribute('title'); }
+}
+function setAlBy(name) {
+    const el = $('al-by'); el.textContent = name || '';
+    markArtist(el, name);
+}
+function hintFor(id) {
+    const d = st.items.find(x => x.identifier === id);
+    if (d) return { id, title: first(d.title) || id, creator: first(d.creator) || '', date: yearOf(d) };
+    const r = S.favs.concat(S.recents).find(x => x.id === id);
+    return r ? { id, title: r.title, creator: r.creator, date: r.date } : { id, title: id, creator: '', date: '' };
+}
+function openAlbum(id, hint) {
+    albumId = id; albumItem = null; albumTracks = []; albumHead = hint || hintFor(id);
+    const c = $('al-cover'); c.dataset.ph = id; c.src = coverUrl(id);
+    $('al-title').textContent = albumHead.title || id; setAlBy(albumHead.creator || '');
+    $('al-meta').textContent = ''; $('al-desc').textContent = ''; $('al-desc').classList.remove('open');
+    $('al-tracks').innerHTML = '<div class="spin"></div>';
+    updateFavUI(); setSheet('sheet-album', true); albumOpen = true; $('sheet-album').scrollTop = 0;
+    fetchItem(id).then(it => { if (albumId === id) renderAlbum(it); })
+        .catch(() => { if (albumId === id) $('al-tracks').innerHTML = '<div class="errbox">No pude cargar este elemento.<br>Revisa tu conexión o el enlace.<br><button class="pill glass press" data-act="retry-album">Reintentar</button></div>'; });
+}
+function renderAlbum(it) {
+    albumItem = it; albumTracks = buildTracks(it);
+    albumHead = { id: it.id, title: it.title, creator: it.creator, date: it.date };
+    $('al-title').textContent = it.title; setAlBy(it.creator);
+    $('al-desc').textContent = it.desc;
+    let total = 0; albumTracks.forEach(t => { total += t.dur || 0; });
+    $('al-meta').textContent = [it.date, albumTracks.length ? albumTracks.length + (albumTracks.length === 1 ? ' pista' : ' pistas') : '', total ? fmt(total) : ''].filter(Boolean).join(' · ');
+    if (it.restricted) $('al-tracks').innerHTML = '<div class="empty">Este elemento es de acceso restringido (préstamo) y no se puede reproducir aquí.</div>';
+    else if (!albumTracks.length) $('al-tracks').innerHTML = '<div class="empty">Este elemento no tiene audio que tu dispositivo pueda reproducir.</div>';
+    else $('al-tracks').innerHTML = albumTracks.map((t, i) => trkHtml(t, i, 'a')).join('');
+    highlightRows(); updateFavUI();
+}
+function toggleFav(it) {
+    if (!it || !it.id) return;
+    if (isFav(it.id)) S.favs = S.favs.filter(f => f.id !== it.id);
+    else S.favs.unshift({ id: it.id, title: it.title || it.id, creator: it.creator || '', date: it.date || '' });
+    lsSet('favs', S.favs); updateFavUI();
+    if (curTabIs('library')) renderLibrary();
+    toast(isFav(it.id) ? 'Añadido a favoritos' : 'Quitado de favoritos');
+}
+const curTabIs = n => $('view-' + n).classList.contains('on');
+
+/* ───────── Búsquedas guardadas ───────── */
+const sameSearch = s => s.q.toLowerCase() === st.q.toLowerCase() && !!s.adv === st.adv;
+const isSavedSearch = () => !!st.q && S.searches.some(sameSearch);
+function renderSaved() {
+    const el = $('saved'); if (!el) return;
+    el.classList.toggle('hidden', !S.searches.length);
+    el.innerHTML = S.searches.map((s, i) => '<button class="chip sav' + (st.q && sameSearch(s) ? ' on' : '') + '" data-act="runsaved" data-i="' + i + '">\u2665 ' + esc(s.label) + '</button>').join('');
+    const on = isSavedSearch(); $('q-save').classList.toggle('on', on); setUse($('q-save-use'), on ? 'i-heartf' : 'i-heart');
+}
+function toggleSearch() {
+    if (!st.q) { toast('Escribe algo para buscar y luego guárdalo'); return; }
+    if (isSavedSearch()) { S.searches = S.searches.filter(s => !sameSearch(s)); toast('Búsqueda quitada de favoritas'); }
+    else {
+        const label = st.q.length > 32 ? st.q.slice(0, 31) + '…' : st.q;
+        S.searches.unshift({ q: st.q, adv: st.adv, broad: st.broad, filter: st.filter, label });
+        S.searches = S.searches.slice(0, 40); toast('Búsqueda guardada');
+    }
+    lsSet('searches', S.searches); renderSaved(); if (curTabIs('library')) renderLibrary();
+}
+function runSaved(i) {
+    const s = S.searches[i]; if (!s) return;
+    qEl.value = s.q; $('searchbox').classList.add('has');
+    st.q = s.q; st.adv = !!s.adv; st.broad = !!s.broad; st.filter = s.filter || 'web'; st.sort = null; st.dir = 'desc';
+    switchTab('search'); $('view-search').scrollTop = 0;
+    renderChips(); doSearch(true);
+}
+
+/* ───────── Biblioteca y “Seguir escuchando” ───────── */
+let libTab = 'favs';
+function renderLibrary() {
+    document.querySelectorAll('#lib-seg button').forEach(b => b.classList.toggle('on', b.dataset.val === libTab));
+    if (libTab === 'searches') {
+        $('lib-list').innerHTML = !S.searches.length ? '<div class="empty">Aún no tienes búsquedas guardadas.<br>Busca algo (una banda, un artista, quien sube conciertos) y toca el corazón dentro del buscador.</div>'
+            : S.searches.map((s, i) => '<div class="row" data-act="runsaved" data-i="' + i + '"><div class="cov" style="display:flex;align-items:center;justify-content:center;color:var(--tint)"><svg class="ic" style="width:1.4rem;height:1.4rem"><use href="#i-search"/></svg></div><div class="tx"><div class="t">' + esc(s.label) + '</div><div class="s">Búsqueda guardada' + (s.adv ? ' · avanzada' : s.broad ? ' · ampliada' : '') + '</div></div><button class="rm press" data-act="delsaved" data-i="' + i + '" aria-label="Quitar">✕</button></div>').join('');
+        return;
+    }
+    const list = libTab === 'favs' ? S.favs : S.recents;
+    if (!list.length) { $('lib-list').innerHTML = '<div class="empty">' + (libTab === 'favs' ? 'Aún no tienes favoritos.<br>Abre un álbum y toca el corazón.' : 'Aquí aparecerá lo que escuches.') + '</div>'; return; }
+    $('lib-list').innerHTML = list.map(r => {
+        const sub = libTab === 'recents' && r.tn ? [r.creator, 'Pista ' + ((r.idx || 0) + 1) + ' de ' + r.tn].filter(Boolean).join(' · ') : [r.creator, String(r.date || '').slice(0, 4)].filter(Boolean).join(' · ');
+        return '<div class="row" data-act="open" data-id="' + esc(r.id) + '"><img class="cov" loading="lazy" data-ph="' + esc(r.id) + '" src="' + esc(coverUrl(r.id)) + '" alt=""><div class="tx"><div class="t">' + esc(r.title || r.id) + '</div><div class="s">' + esc(sub) + '</div></div></div>';
+    }).join('');
+}
+function renderCont() {
+    const e = S.recents[0], el = $('home-cont');
+    if (!e) { el.innerHTML = ''; return; }
+    const pct = e.dur ? Math.min(100, e.time / e.dur * 100) : 0;
+    el.innerHTML = '<div class="cont glass" data-act="resume"><img class="cov" data-ph="' + esc(e.id) + '" src="' + esc(coverUrl(e.id)) + '" alt=""><div class="tx"><div class="k">Seguir escuchando</div><div class="t">' + esc(e.title || e.id) + '</div><div class="s">' +
+        esc([e.creator, e.tn ? 'Pista ' + ((e.idx || 0) + 1) + ' de ' + e.tn : ''].filter(Boolean).join(' · ')) + '</div><div class="bar"><i style="width:' + pct + '%"></i></div></div><div class="go"><svg class="ic"><use href="#i-play"/></svg></div></div>';
+}
+
+/* ───────── Ajustes ───────── */
+function renderSettings() {
+    document.querySelectorAll('[data-act="set"]').forEach(b => b.classList.toggle('on', String(S[b.dataset.key]) === b.dataset.val));
+}
+
+/* ───────── Onda decorativa ───────── */
+const cv = $('wave'), cx2 = cv.getContext('2d'), WW = 110, WH = 34, DPR = Math.min(2, window.devicePixelRatio || 1);
+cv.width = WW * DPR; cv.height = WH * DPR;
+let wAmp = 0, wPh = 0, wRaf = 0, wLast = 0;
+function waveCols() {
+    const c = S.waveColor;
+    if (c === 'orange') return ['#ffa400'];
+    if (c === 'mono') return [document.documentElement.classList.contains('dark') ? '#ffffff' : '#1c1c1e'];
+    return ['#22d3ee', '#f472b6', '#a78bfa'];
+}
+function drawWave(t) {
+    wRaf = 0;
+    if (!playerOpen || !S.waveOn) return;
+    const dt = Math.min((t - wLast) / 1000 || 0.016, 0.05); wLast = t;
+    wAmp += ((playing ? 1 : 0.06) - wAmp) * Math.min(1, dt * 5); wPh += dt * (playing ? 4.2 : 0.6);
+    cx2.setTransform(DPR, 0, 0, DPR, 0, 0); cx2.clearRect(0, 0, WW, WH);
+    const cols = waveCols(), style = S.waveStyle, dark = document.documentElement.classList.contains('dark');
+    if (style === 'siri') {
+        const lc = cols.length > 1 ? cols : [cols[0], cols[0], cols[0]];
+        cx2.globalCompositeOperation = dark ? 'lighter' : 'source-over'; cx2.lineWidth = 1.8; cx2.lineCap = 'round';
+        for (let k = 0; k < 3; k++) {
+            cx2.beginPath();
+            for (let x = 0; x <= WW; x += 2) {
+                const u = x / WW, env = Math.sin(Math.PI * u);
+                const y = WH / 2 + Math.sin(u * (5 + k * 1.7) * Math.PI * 0.9 + wPh * (1 + k * 0.35) + k * 2) * env * (WH * 0.42) * wAmp * (1 - k * 0.18);
+                if (x) cx2.lineTo(x, y); else cx2.moveTo(x, y);
+            }
+            cx2.strokeStyle = lc[k]; cx2.stroke();
+        }
+        cx2.globalCompositeOperation = 'source-over';
+    } else {
+        const n = style === 'thin' ? 46 : 24, bw = style === 'thin' ? 1.6 : 3.2, gap = (WW - n * bw) / (n - 1);
+        let sty = cols[0];
+        if (cols.length > 1) { const g = cx2.createLinearGradient(0, 0, WW, 0); cols.forEach((c, i) => g.addColorStop(i / (cols.length - 1), c)); sty = g; }
+        cx2.strokeStyle = sty; cx2.lineWidth = bw; cx2.lineCap = 'round'; cx2.beginPath();
+        for (let i = 0; i < n; i++) {
+            const nz = 0.5 + 0.5 * Math.sin(wPh * 1.3 + i * 0.7) * Math.cos(wPh * 0.7 + i * 1.9);
+            const env = 0.35 + 0.65 * Math.sin(Math.PI * (i + 0.5) / n);
+            const h = Math.max(bw, WH * (0.12 + 0.88 * wAmp * Math.abs(nz) * env));
+            const xx = i * (bw + gap) + bw / 2, y0 = (WH - h) / 2 + bw / 2, y1 = (WH + h) / 2 - bw / 2;
+            cx2.moveTo(xx, y0); cx2.lineTo(xx, Math.max(y0, y1));
+        }
+        cx2.stroke();
+    }
+    if (playing || wAmp > 0.09) wRaf = requestAnimationFrame(drawWave);
+}
+function ensureWave() {
+    cv.style.display = S.waveOn ? '' : 'none';
+    if (!wRaf && playerOpen && S.waveOn) { wLast = performance.now(); wRaf = requestAnimationFrame(drawWave); }
+}
+
+/* ───────── Acciones ───────── */
+const ACT = {
+    savesearch() { toggleSearch(); },
+    runsaved(b) { runSaved(Number(b.dataset.i)); },
+    delsaved(b) { S.searches.splice(Number(b.dataset.i), 1); lsSet('searches', S.searches); renderSaved(); renderLibrary(); },
+    clearq() { const q = $('q'); q.value = ''; $('searchbox').classList.remove('has'); commitQuery(''); q.focus(); },
+    retry() { doSearch(false); },
+    tryweb() { st.filter = 'web'; renderChips(); doSearch(true); toast('Buscando en Todo el audio'); },
+    more() { st.page++; doSearch(false); },
+    broad() { st.broad = true; doSearch(true); toast('Buscando también en títulos y descripciones'); },
+    filter(b) { st.filter = b.dataset.val; renderChips(); doSearch(true); },
+    sort(b) {
+        const v = b.dataset.val;
+        if (st.sort === v) st.dir = st.dir === 'asc' ? 'desc' : 'asc';   /* tocar el mismo orden invierte el sentido, como en la web */
+        else { st.sort = v; st.dir = (SORTS.find(s => s.id === v) || {}).def || 'desc'; }
+        renderChips(); doSearch(true);
+    },
+    dir() { st.dir = st.dir === 'asc' ? 'desc' : 'asc'; renderChips(); doSearch(true); },
+    open(b) { openAlbum(b.dataset.id); },
+    artist(b) {
+        const c = (b.dataset.val || '').replace(/["\\]/g, '').trim(); if (!c) return;
+        const qq = c.split(/\s*[,;]\s*/)[0];   /* si hay varios artistas, el primero */
+        qEl.value = qq; $('searchbox').classList.add('has');
+        switchTab('search'); $('view-search').scrollTop = 0;
+        if (!(st.q === qq && !st.adv && !st.broad && st.filter === 'web')) {
+            st.q = qq; st.adv = false; st.broad = false; st.filter = 'web';   /* solo ítems con ese artista exacto */
+            renderChips(); doSearch(true); toast('Mostrando todo de ' + c);
+        }
+    },
+    libtab(b) { libTab = b.dataset.val; renderLibrary(); },
+    set(b) {
+        const k = b.dataset.key; let v = b.dataset.val; if (v === 'true') v = true; else if (v === 'false') v = false;
+        S[k] = v; lsSet(k, v); renderSettings();
+        if (k === 'theme') applyTheme();
+        if (k.indexOf('wave') === 0) ensureWave();
+    },
+    'clear-recents'() { if (confirm('¿Borrar el historial de reproducción?')) { S.recents = []; lsSet('recents', S.recents); pending = null; if (!item) updateMini(); renderCont(); toast('Historial borrado'); } },
+    'clear-favs'() { if (confirm('¿Borrar todos los favoritos?')) { S.favs = []; lsSet('favs', S.favs); updateFavUI(); toast('Favoritos borrados'); } },
+    'close-album'() { setSheet('sheet-album', false); albumOpen = false; },
+    'fav-album'(b) { toggleFav(b.id === 'p-fav' ? item : albumHead); },
+    'al-play'() { if (albumItem && albumTracks.length) startPlayback(albumItem, albumTracks, 0, 0); },
+    'al-shuffle'() { if (albumItem && albumTracks.length) { shuffle = true; lsSet('shuffle', true); updShuffleUI(); startPlayback(albumItem, albumTracks, Math.floor(Math.random() * albumTracks.length), 0); } },
+    'toggle-desc'(b) { b.classList.toggle('open'); },
+    playtrack(b) { if (albumItem && albumTracks.length) startPlayback(albumItem, albumTracks, Number(b.dataset.i), 0); },
+    playq(b) { loadTrack(Number(b.dataset.i), true); },
+    'retry-album'() { if (albumId) openAlbum(albumId, albumHead); },
+    'open-player'() { if (item) openPlayer(); else if (pending) { unlock(); resumeRecent(pending); } },
+    'close-player'() { closePlayer(); },
+    toggle() { toggle(); },
+    prev() { goPrev(); },
+    next() { goNext(); },
+    back15() { skip(-15); },
+    fwd15() { skip(15); },
+    shuffle() { shuffle = !shuffle; lsSet('shuffle', shuffle); bag = shuffle ? allIdx(idx) : []; updShuffleUI(); },
+    repeat() { repeat = (repeat + 1) % 3; lsSet('repeat', repeat); updRepeatUI(); },
+    sleep() {
+        sleepI = (sleepI + 1) % SLEEPS.length; const m = SLEEPS[sleepI];
+        sleepEnd = m ? Date.now() + m * 60000 : 0; updateSleepUI();
+        toast(m ? 'La música se pausará en ' + m + ' min' : 'Temporizador apagado');
+    },
+    queue() { $('queue').classList.toggle('on'); },
+    resume() {
+        const e = S.recents[0]; if (!e) return;
+        if (item && item.id === e.id) { toggle(); return; }
+        resumeRecent(e);
+    }
+};
+document.addEventListener('click', e => {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const a = ACT[b.dataset.act]; if (a) { e.preventDefault(); a(b, e); }
+});
+
+/* Buscador */
+const qEl = $('q'); let deb;
+qEl.addEventListener('input', () => { $('searchbox').classList.toggle('has', !!qEl.value); clearTimeout(deb); deb = setTimeout(() => commitQuery(qEl.value), 350); });
+qEl.addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(deb); commitQuery(qEl.value); qEl.blur(); } });
+qEl.addEventListener('focusout', () => { window.scrollTo(0, 0); });
+
+/* Carga automática: al llegar al final de la lista se piden más resultados, sin tocar “Cargar más” */
+if ('IntersectionObserver' in window) {
+    new IntersectionObserver(es => {
+        if (es.some(e => e.isIntersecting) && !st.loading && !st.err && st.items.length && st.fetched < st.total && curTabIs('search')) { st.page++; doSearch(false); }
+    }, { rootMargin: '600px 0px' }).observe($('more'));
+}
+
+/* Barra de progreso */
+const sk = $('seek');
+sk.addEventListener('input', () => {
+    seeking = true;
+    let dur = audio.duration; if (!isFinite(dur) || dur <= 0) dur = (tracks[idx] && tracks[idx].dur) || 0;
+    sk.style.setProperty('--p', (sk.value / 10) + '%'); $('t-cur').textContent = fmt(dur * sk.value / 1000);
+});
+sk.addEventListener('change', () => {
+    let dur = audio.duration; if (!isFinite(dur) || dur <= 0) dur = 0;
+    if (dur) { try { audio.currentTime = dur * sk.value / 1000; } catch (e) {} }
+    seeking = false;
+});
+
+window.addEventListener('pagehide', () => touchRecent());
+document.addEventListener('visibilitychange', () => { if (document.hidden) touchRecent(); else ensureWave(); });
+
+/* ───────── Inicio ───────── */
+applyTheme(); renderSettings(); renderChips(); renderSaved(); renderCont(); updShuffleUI(); updRepeatUI(); updateSleepUI();
+if (S.recents[0]) { pending = S.recents[0]; updateMini(); }
+if (window.lgSetTab) window.lgSetTab('search');
+doSearch(true);
+})();
+</script>
+</body>
+</html>
