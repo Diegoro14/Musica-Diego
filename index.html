@@ -911,8 +911,11 @@ const FILTERS = [
     { id: 'live', label: 'Conciertos en vivo', q: 'collection:etree' },
     { id: 'music', label: 'Música', q: 'collection:audio_music' },
     { id: '78', label: 'Discos 78 rpm', q: 'collection:78rpm' },
-    { id: 'net', label: 'Netlabels', q: 'collection:netlabels' }
+    { id: 'net', label: 'Netlabels', q: 'collection:netlabels' },
+    { id: 'books', label: 'Audiolibros (español)', q: 'collection:librivoxaudio AND language:(Spanish OR spa OR es OR "Spanish; Castilian")' }
 ];
+const isBooks = () => st.filter === 'books';
+const isIdle = () => !st.q.trim() && !isBooks();   /* sin texto no se muestra nada por defecto */
 /* Órdenes, iguales a los de la web de archive.org (las 9 del menú “Sort by”, con sentido asc/desc como ahí) */
 const SORTS = [
     { id: 'rel', label: 'Relevancia', f: null, def: 'desc' },
@@ -931,6 +934,7 @@ const effSort = () => st.sort ? ((st.sort === 'rel' && !st.q) ? 'views' : st.sor
 function renderChips() {
     $('chips').innerHTML = FILTERS.map(f => '<button class="chip' + (f.id === st.filter ? ' on' : '') + '" data-act="filter" data-val="' + f.id + '">' + esc(f.label) + '</button>').join('');
     const es = effSort();
+    { const qi = $('q'); if (qi) qi.placeholder = isBooks() ? 'Título o autor del audiolibro' : 'Artista, banda, persona o enlace'; }
     const lbl = s => {
         if (s.id === 'title') return es === 'title' && st.dir === 'desc' ? 'Título Z-A' : 'Título A-Z';
         if (s.id === 'creator') return es === 'creator' && st.dir === 'desc' ? 'Creador Z-A' : 'Creador A-Z';
@@ -983,12 +987,12 @@ function buildQuery() {
         return '(' + base + ')' + wq() + ((own || !f.q) ? ' ' : ' AND (' + f.q + ') ') + notRestr;
     }
     const clean = st.q.replace(/[+\-&|!(){}\[\]^"~*?:\\\/]/g, ' ').replace(/\s+/g, ' ').trim();
-    if (clean) return smartQuery(clean, st.broad || !!st.within) + wq() + ' AND (' + (f.q || 'mediatype:(audio OR etree)') + ') ' + notRestr;   /* app de música: siempre solo audio */
+    if (clean) return smartQuery(clean, st.broad || !!st.within || isBooks()) + wq() + ' AND (' + (f.q || 'mediatype:(audio OR etree)') + ') ' + notRestr;   /* app de música: siempre solo audio */
     /* portada sin texto: siempre lo más escuchado del audio, aunque el chip sea “Toda la web” */
     return '(' + (f.q || 'mediatype:(audio OR etree)') + ') ' + notRestr;
 }
 const normName = s => foldAcc(String(s).toLowerCase()).replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9ñ]+/g, ' ').trim();
-const strictOn = () => !!(st.q && !st.adv && !st.broad && !st.within);
+const strictOn = () => !!(st.q && !st.adv && !st.broad && !st.within && !isBooks());
 function creatorOk(d) {
     const name = normName(st.q), w = name.split(' ');
     const alts = [name]; if (w.length === 2) alts.push(w[1] + ' ' + w[0]);
@@ -997,6 +1001,7 @@ function creatorOk(d) {
 }
 function doSearch(reset) {
     if (reset) { st.page = 1; st.items = []; st.total = 0; st.fetched = 0; }
+    if (isIdle()) { ++st.req; st.loading = false; st.err = false; st.items = []; st.total = 0; st.fetched = 0; renderResults(); return; }
     const id = ++st.req; st.loading = true; st.err = false; renderResults();
     const p = new URLSearchParams();
     p.set('q', buildQuery());
@@ -1028,7 +1033,7 @@ function doSearch(reset) {
 function resLabel() {
     const f = FILTERS.find(x => x.id === st.filter) || FILTERS[0];
     if (st.q) { const n = strictOn() ? st.items.length + (st.fetched < st.total ? '+' : '') : (st.total ? st.total.toLocaleString('es-CL') : ''); return 'Resultados' + (n ? ' · ' + n : ''); }
-    return st.filter === 'web' ? 'Lo más escuchado' : 'Populares · ' + f.label;
+    return isBooks() ? 'Audiolibros en español' : '';
 }
 function rowHtml(d) {
     const sub = [first(d.creator) || '', yearOf(d)].filter(Boolean).join(' · ');
@@ -1036,8 +1041,9 @@ function rowHtml(d) {
         '<div class="tx"><div class="t">' + esc(first(d.title) || d.identifier) + '</div><div class="s">' + esc(sub) + '</div></div></div>';
 }
 function renderResults() {
-    $('res-lbl').textContent = resLabel();
+    $('res-lbl').textContent = resLabel(); $('res-lbl').style.display = isIdle() ? 'none' : '';
     let h = st.items.map(rowHtml).join('');
+    if (isIdle()) { $('results').innerHTML = '<div class="empty">Escribe un artista, una banda o pega un enlace de archive.org.<br>O toca <b>Audiolibros (español)</b> para buscar libros narrados.</div>'; renderSaved(); $('more').innerHTML = ''; return; }
     if (st.loading) h += '<div class="spin"></div>';
     else if (st.err) h += '<div class="errbox">No pude conectar con Internet Archive.<br>Revisa tu conexión e inténtalo de nuevo.<br><button class="pill glass press" data-act="retry">Reintentar</button></div>';
     else if (!st.items.length) {
