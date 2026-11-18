@@ -1009,12 +1009,14 @@ function idsFrom(o, out) {   /* junta los identificadores que haya en la respues
     return out;
 }
 function loadList(lo, id) {
-    const urls = [IA + '/services/users/@' + lo.u + '/lists/' + lo.n, IA + '/services/users/' + lo.u + '/lists/' + lo.n];
+    /* archive.org no permite pedir este servicio desde otra página (CORS): primero directo y, si el navegador lo bloquea, por un puente público que solo reenvía esta consulta */
+    const base = IA + '/services/users/@' + lo.u + '/lists/' + lo.n;
+    const urls = [base, 'https://api.allorigins.win/raw?url=' + encodeURIComponent(base), 'https://corsproxy.io/?url=' + encodeURIComponent(base)];
     const tryNext = i => fetch(urls[i]).then(r => { if (!r.ok) { const e = new Error('http ' + r.status); e.http = true; throw e; } return r.json(); })
         .then(j => { const ids = idsFrom(j, []).filter((x, k, a) => a.indexOf(x) === k); if (!ids.length) throw new Error('vacía'); return ids; })
         .catch(e => i + 1 < urls.length ? tryNext(i + 1) : Promise.reject(e));
     tryNext(0).then(ids => { if (id !== st.req) return; st.listKey = st.q.trim(); st.listIds = ids; doSearch(false); })
-        .catch(e => { if (id !== st.req) return; st.loading = false; st.err = true; st.errWhy = 'Lista de @' + lo.u + ': ' + (e && e.http ? String(e.message) : 'archive.org no entregó los ítems de esa lista'); renderResults(); });
+        .catch(e => { if (id !== st.req) return; st.loading = false; st.err = true; st.errWhy = 'Lista de @' + lo.u + ': ' + (e && e.http ? String(e.message) : e && e.message === 'vacía' ? 'la lista está vacía o no es pública' : 'el navegador bloqueó la consulta'); renderResults(); });
 }
 const userOf = () => { const m = /^@([\w.\-]+)$/.exec(st.q.trim()); return m ? m[1] : (st.fbUser && st.fbUser === st.q.trim() ? st.fbUser : ''); };
 /* Perfil de usuario de archive.org: es el mismo servicio que usa su página de perfil (@usuario) */
