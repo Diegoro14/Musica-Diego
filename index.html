@@ -124,7 +124,9 @@ input, select, textarea { font-size: 16px !important; font-family: inherit; }
 .cont .go .ic { width: 1.2rem; height: 1.2rem; }
 
 .seg { display: flex; background: var(--card2); border-radius: 12px; padding: 3px; gap: 2px; }
-.seg button { flex: 1; height: 2rem; border-radius: 9px; font-size: .8125rem; font-weight: 600; color: var(--label2); }
+.seg { overflow-x: auto; scrollbar-width: none; }
+.seg::-webkit-scrollbar { display: none; }
+.seg button { flex: 1 0 auto; padding: 0 .7rem; height: 2rem; border-radius: 9px; font-size: .8125rem; font-weight: 600; color: var(--label2); }
 .seg button.on { background: var(--tint); color: #000; }
 
 /* Hojas (álbum y reproductor) */
@@ -352,12 +354,14 @@ input, select, textarea { font-size: 16px !important; font-family: inherit; }
     <div class="vhead"><h1 class="h1">Biblioteca</h1><div class="tools"><button class="rnd glass press" data-act="text-down" aria-label="Texto más pequeño"><b style="font-size:.8rem">A</b><b style="font-size:.75rem;margin-left:1px">−</b></button><button class="rnd glass press" data-act="text-up" aria-label="Texto más grande"><b style="font-size:1.05rem">A</b><b style="font-size:.75rem;margin-left:1px">+</b></button><button class="rnd glass press" data-act="toggle-theme" aria-label="Cambiar tema"><svg class="ic"><use href="#i-sun" data-themeic="1"/></svg></button></div></div>
     <div class="seg" id="lib-seg">
         <button data-act="libtab" data-val="searches">Artistas</button>
+        <button data-act="libtab" data-val="creators">Creadores</button>
         <button data-act="libtab" data-val="favs">Álbumes</button>
         <button data-act="libtab" data-val="songs">Canciones</button>
         <button data-act="libtab" data-val="lists">Listas</button>
         <button data-act="libtab" data-val="recents">Recientes</button>
     </div>
-    <div id="lib-list" style="margin-top:.8rem"></div>
+    <div class="chips" id="lib-sort" style="margin:.7rem -1.25rem 0"></div>
+    <div id="lib-list" style="margin-top:.6rem"></div>
 </main>
 
 <!-- ═══════ AJUSTES ═══════ -->
@@ -1475,12 +1479,12 @@ function renderSaved() {
 }
 function toggleSearch() {
     if (!st.q) { toast('Escribe algo para buscar y luego guárdalo'); return; }
-    if (isSavedSearch()) { S.searches = S.searches.filter(s => !sameSearch(s)); toast('Quitado de Artistas'); }
+    if (isSavedSearch()) { S.searches = S.searches.filter(s => !sameSearch(s)); toast('Quitado de la Biblioteca'); }
     else {
         const full = st.q + (st.within ? ' › ' + st.within : '');
         const label = full.length > 36 ? full.slice(0, 35) + '…' : full;
         S.searches.unshift({ q: st.q, adv: st.adv, broad: st.broad, within: st.within, filter: st.filter, label });
-        S.searches = S.searches.slice(0, 40); toast('Guardado en Biblioteca › Artistas');
+        S.searches = S.searches.slice(0, 80); toast('Guardado en Biblioteca › ' + (isCreator(S.searches[0]) ? 'Creadores' : 'Artistas'));
     }
     lsSet('searches', S.searches); renderSaved(); if (curTabIs('library')) renderLibrary();
 }
@@ -1622,24 +1626,40 @@ $('bk-file').addEventListener('change', e => {
 
 /* ───────── Biblioteca y “Seguir escuchando” ───────── */
 let libTab = 'searches';
+const isCreator = x => !!(x.adv || x.broad || x.within);   /* artista = búsqueda exacta; creador = búsqueda avanzada, amplia o filtrada */
+const cmpEs = (x, y) => String(x || '').localeCompare(String(y || ''), 'es', { sensitivity: 'base', numeric: true });
+function searchLabel(x) { const m = /^\(?\s*uploader:"([^"]+)"/.exec(x.label || x.q || ''); return m ? 'Usuario: ' + m[1] : (x.label || x.q); }
+let LIBSORT = lsGet('libSort', {}); if (!LIBSORT || typeof LIBSORT !== 'object') LIBSORT = {};
+const libSortOf = () => LIBSORT[libTab] === 'az' ? 'az' : 'recent';
+function renderLibSort() {
+    const el = $('lib-sort'); if (!el) return;
+    if (libTab === 'recents') { el.innerHTML = ''; return; }
+    const cur = libSortOf();
+    el.innerHTML = '<button class="chip' + (cur === 'recent' ? ' on' : '') + '" data-act="libsort" data-val="recent">Último agregado</button><button class="chip' + (cur === 'az' ? ' on' : '') + '" data-act="libsort" data-val="az">A–Z</button>';
+}
 function renderLibrary() {
     document.querySelectorAll('#lib-seg button').forEach(b => b.classList.toggle('on', b.dataset.val === libTab));
-    if (libTab === 'searches') {
-        $('lib-list').innerHTML = !S.searches.length ? '<div class="empty">Aún no tienes artistas ni creadores guardados.<br>Busca una banda, un artista o quien sube conciertos y toca el corazón dentro del buscador.</div>'
-            : S.searches.map((s, i) => '<div class="row" data-act="runsaved" data-i="' + i + '"><div class="cov" style="display:flex;align-items:center;justify-content:center;color:var(--tint)"><svg class="ic" style="width:1.4rem;height:1.4rem"><use href="#i-search"/></svg></div><div class="tx"><div class="t">' + esc(s.label) + '</div><div class="s">' + (s.within ? 'Creador · filtrado' : s.adv || s.broad ? 'Creador o colección' : 'Artista') + '</div></div><button class="rm press" data-act="delsaved" data-i="' + i + '" aria-label="Quitar">✕</button></div>').join('');
+    renderLibSort();
+    if (libTab === 'searches' || libTab === 'creators') {
+        const isC = libTab === 'creators';
+        let idx = S.searches.map((x, i) => i).filter(i => isCreator(S.searches[i]) === isC);
+        if (libSortOf() === 'az') idx.sort((x, y) => cmpEs(searchLabel(S.searches[x]), searchLabel(S.searches[y])));
+        $('lib-list').innerHTML = !idx.length ? (isC ? '<div class="empty">Aún no tienes creadores guardados.<br>Un creador es quien sube muchos discos (un coleccionista, un usuario o una colección). Busca uno y toca el corazón dentro del buscador.</div>' : '<div class="empty">Aún no tienes artistas guardados.<br>Busca una banda o un artista y toca el corazón dentro del buscador.</div>')
+            : idx.map(i => { const x = S.searches[i]; return '<div class="row" data-act="runsaved" data-i="' + i + '"><div class="cov" style="display:flex;align-items:center;justify-content:center;color:var(--tint)"><svg class="ic" style="width:1.4rem;height:1.4rem"><use href="#i-search"/></svg></div><div class="tx"><div class="t">' + esc(searchLabel(x)) + '</div><div class="s">' + (x.within ? 'Creador · filtrado' : isCreator(x) ? 'Creador o colección' : 'Artista') + '</div></div><button class="rm press" data-act="delsaved" data-i="' + i + '" aria-label="Quitar">✕</button></div>'; }).join('');
         return;
     }
     if (libTab === 'songs') {
-        likeTracks = S.likes.map(trackOf);
+        likeTracks = S.likes.map(trackOf); if (libSortOf() === 'az') likeTracks.sort((x, y) => cmpEs(x.title, y.title));
         $('lib-list').innerHTML = !likeTracks.length ? '<div class="empty">Aún no tienes canciones favoritas.<br>Toca el corazón junto a una canción, o el del reproductor.</div>'
             : '<div class="abtns" style="margin:.2rem 0 .4rem"><button class="pill orange press" data-act="likes-play"><svg class="ic"><use href="#i-play"/></svg>Reproducir</button><button class="pill glass press" data-act="likes-shuffle"><svg class="ic"><use href="#i-shuffle"/></svg>Aleatorio</button></div>' + likeTracks.map((t, i) => trkHtml(t, i, 'l')).join('');
         return;
     }
     if (libTab === 'lists') {
-        $('lib-list').innerHTML = '<button class="pill glass press" data-act="newpl" style="margin:.2rem 0 .6rem">＋ Nueva lista</button>' + (S.playlists.length ? S.playlists.map(p => '<div class="row" data-act="openpl" data-id="' + esc(p.id) + '"><div class="cov" style="display:flex;align-items:center;justify-content:center;color:var(--tint)"><svg class="ic" style="width:1.4rem;height:1.4rem"><use href="#i-list"/></svg></div><div class="tx"><div class="t">' + esc(p.name) + '</div><div class="s">' + p.tracks.length + (p.tracks.length === 1 ? ' canción' : ' canciones') + '</div></div></div>').join('') : '<div class="empty">Aún no tienes listas.<br>Crea una y agrega canciones de distintos artistas con el ＋ de cada pista.</div>');
+        $('lib-list').innerHTML = '<button class="pill glass press" data-act="newpl" style="margin:.2rem 0 .6rem">＋ Nueva lista</button>' + (S.playlists.length ? S.playlists.slice().sort((x, y) => libSortOf() === 'az' ? cmpEs(x.name, y.name) : 0).map(p => '<div class="row" data-act="openpl" data-id="' + esc(p.id) + '"><div class="cov" style="display:flex;align-items:center;justify-content:center;color:var(--tint)"><svg class="ic" style="width:1.4rem;height:1.4rem"><use href="#i-list"/></svg></div><div class="tx"><div class="t">' + esc(p.name) + '</div><div class="s">' + p.tracks.length + (p.tracks.length === 1 ? ' canción' : ' canciones') + '</div></div></div>').join('') : '<div class="empty">Aún no tienes listas.<br>Crea una y agrega canciones de distintos artistas con el ＋ de cada pista.</div>');
         return;
     }
-    const list = libTab === 'favs' ? S.favs : S.recents;
+    let list = libTab === 'favs' ? S.favs : S.recents;
+    if (libTab === 'favs' && libSortOf() === 'az') list = list.slice().sort((x, y) => cmpEs(x.title || x.id, y.title || y.id));
     if (!list.length) { $('lib-list').innerHTML = '<div class="empty">' + (libTab === 'favs' ? 'Aún no tienes favoritos.<br>Abre un álbum y toca el corazón.' : 'Aquí aparecerá lo que escuches.') + '</div>'; return; }
     $('lib-list').innerHTML = list.map(r => {
         const sub = libTab === 'recents' && r.tn ? [r.creator, 'Pista ' + ((r.idx || 0) + 1) + ' de ' + r.tn].filter(Boolean).join(' · ') : [r.creator, String(r.date || '').slice(0, 4)].filter(Boolean).join(' · ');
@@ -1934,6 +1954,7 @@ const ACT = {
         renderChips(); doSearch(true); toast('Mostrando lo que subió esta cuenta');
     },
     libtab(b) { libTab = b.dataset.val; renderLibrary(); },
+    libsort(b) { LIBSORT[libTab] = b.dataset.val; lsSet('libSort', LIBSORT); renderLibrary(); },
     set(b) {
         const k = b.dataset.key; let v = b.dataset.val; if (v === 'true') v = true; else if (v === 'false') v = false;
         S[k] = v; lsSet(k, v); renderSettings();
