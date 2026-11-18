@@ -1530,18 +1530,19 @@ function genie(opening, fromTransform) {
     const sh = $('sheet-player'), mini = $('mini'), mc = $('m-cover'), pc = $('p-cover');
     if (!sh.animate || !mini || !mc || !pc || mini.classList.contains('hidden')) return null;
     if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return null;
-    const keep = sh.style.transform; if (fromTransform) sh.style.transform = 'none';
     const r = mini.getBoundingClientRect(), m = mc.getBoundingClientRect(), c = pc.getBoundingClientRect(), vw = innerWidth, vh = innerHeight;
-    if (fromTransform) sh.style.transform = keep;
     const sx = Math.max(.05, r.width / vw), sy = Math.max(.03, r.height / vh), dy = r.top + r.height / 2 - vh / 2;
     const small = 'translate(0,' + dy + 'px) scale(' + sx + ',' + sy + ')';
     const dur = opening ? 420 : 460, ease = 'cubic-bezier(.32,.72,0,1)', fl = opening ? 'none' : 'forwards';
     const anims = [];
     const cl = pc.cloneNode(false); cl.removeAttribute('id');
-    cl.style.cssText = 'position:fixed;margin:0;z-index:70;pointer-events:none;transform-origin:0 0;object-fit:cover;left:' + c.left + 'px;top:' + c.top + 'px;width:' + c.width + 'px;height:' + c.height + 'px;will-change:transform';
+    const pcs = getComputedStyle(pc), mcs = getComputedStyle(mc), rad0 = parseFloat(pcs.borderTopLeftRadius) || 14, rad1 = parseFloat(mcs.borderTopLeftRadius) || 10;
+    cl.style.cssText = 'position:fixed;margin:0;z-index:70;pointer-events:none;transform-origin:0 0;object-fit:' + pcs.objectFit + ';border-radius:' + rad0 + 'px;box-shadow:' + pcs.boxShadow + ';left:' + c.left + 'px;top:' + c.top + 'px;width:' + c.width + 'px;height:' + c.height + 'px;will-change:transform';
     const tr = 'translate(' + (m.left - c.left) + 'px,' + (m.top - c.top) + 'px) scale(' + (m.width / Math.max(1, c.width)) + ',' + (m.height / Math.max(1, c.height)) + ')';
     const pcVis = pc.style.visibility; pc.style.visibility = 'hidden'; document.body.appendChild(cl);
-    anims.push(cl.animate(opening ? [{ transform: tr }, { transform: 'none' }] : [{ transform: 'none' }, { transform: tr }], { duration: dur, easing: ease, fill: 'forwards' }));
+    const kr = rad1 / Math.max(.05, m.width / Math.max(1, c.width));   /* el radio también se encoge con la escala: se compensa para llegar igual de redondeada que la del mini */
+    const kf = opening ? [{ transform: tr, borderRadius: kr + 'px', boxShadow: 'none' }, { transform: 'none', borderRadius: rad0 + 'px', boxShadow: pcs.boxShadow }] : [{ transform: 'none', borderRadius: rad0 + 'px', boxShadow: pcs.boxShadow }, { transform: tr, borderRadius: kr + 'px', boxShadow: 'none' }];
+    anims.push(cl.animate(kf, { duration: dur, easing: ease, fill: 'forwards' }));
     const from = fromTransform || 'none';
     anims.push(sh.animate(opening
         ? [{ transform: small, opacity: 0 }, { transform: small, opacity: 1, offset: .2 }, { transform: 'none', opacity: 1 }]
@@ -1558,8 +1559,15 @@ function minimizePlayer(fromTransform) {
     if (!playerOpen) return;
     const sh = $('sheet-player'), a = genie(false, fromTransform);
     if (!a) { sh.style.transform = ''; sh.style.borderRadius = ''; sh.style.transition = ''; closePlayer(); return; }
-    const done = () => { sh.style.transition = 'none'; sh.style.transform = ''; sh.style.borderRadius = ''; closePlayer(); a.cancel(); requestAnimationFrame(() => { sh.style.transition = ''; }); };
+    let ended = false;
+    const done = () => {
+        if (ended) return; ended = true;
+        sh.style.transition = 'none'; sh.style.opacity = '0'; sh.style.visibility = 'hidden'; sh.style.transform = ''; sh.style.borderRadius = '';
+        closePlayer();
+        requestAnimationFrame(() => requestAnimationFrame(() => { a.cancel(); sh.style.opacity = ''; sh.style.visibility = ''; sh.style.transition = ''; }));
+    };
     a.finished.then(done).catch(done);
+    setTimeout(done, 900);   /* red de seguridad: nunca queda a medias */
 }
 (function dragToMinimize() {
     const sh = $('sheet-player'); let y0 = 0, x0 = 0, t0 = 0, dy = 0, on = false, dec = false;
