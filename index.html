@@ -984,6 +984,8 @@ function wq() {
     return w ? ' AND ' + smartQuery(w, true) : '';
 }
 function buildQuery() {
+    const lo = listOf();
+    if (lo && st.listIds) return 'identifier:(' + st.listIds.slice((st.page - 1) * 50, st.page * 50).map(x => '"' + x.replace(/"/g, '') + '"').join(' OR ') + ') AND NOT access-restricted-item:true';
     const us = userOf();   /* @usuario: sus Favoritos (la colección fav-usuario de archive.org) */
     if (us) return '(collection:"fav-' + us.toLowerCase() + '") AND mediatype:(audio OR etree OR collection) AND NOT access-restricted-item:true';
     const f = FILTERS.find(x => x.id === st.filter) || FILTERS[0];
@@ -999,7 +1001,21 @@ function buildQuery() {
     return '(' + (f.q || 'mediatype:(audio OR etree)') + ') ' + notRestr;
 }
 const normName = s => foldAcc(String(s).toLowerCase()).replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9ñ]+/g, ' ').trim();
-const strictOn = () => !!(st.q && !st.adv && !st.broad && !st.within && !isBooks() && !userOf());
+const strictOn = () => !!(st.q && !st.adv && !st.broad && !st.within && !isBooks() && !userOf() && !listOf());
+const listOf = () => { const m = /^@([\w.\-]+)\/lists\/(\d+)$/.exec(st.q.trim()); return m ? { u: m[1], n: m[2] } : null; };
+function idsFrom(o, out) {   /* junta los identificadores que haya en la respuesta de la lista */
+    if (Array.isArray(o)) o.forEach(x => idsFrom(x, out));
+    else if (o && typeof o === 'object') { if (typeof o.identifier === 'string') out.push(o.identifier); else Object.keys(o).forEach(k => idsFrom(o[k], out)); }
+    return out;
+}
+function loadList(lo, id) {
+    const urls = [IA + '/services/users/@' + lo.u + '/lists/' + lo.n, IA + '/services/users/' + lo.u + '/lists/' + lo.n];
+    const tryNext = i => fetch(urls[i]).then(r => { if (!r.ok) { const e = new Error('http ' + r.status); e.http = true; throw e; } return r.json(); })
+        .then(j => { const ids = idsFrom(j, []).filter((x, k, a) => a.indexOf(x) === k); if (!ids.length) throw new Error('vacía'); return ids; })
+        .catch(e => i + 1 < urls.length ? tryNext(i + 1) : Promise.reject(e));
+    tryNext(0).then(ids => { if (id !== st.req) return; st.listKey = st.q.trim(); st.listIds = ids; doSearch(false); })
+        .catch(e => { if (id !== st.req) return; st.loading = false; st.err = true; st.errWhy = 'Lista de @' + lo.u + ': ' + (e && e.http ? String(e.message) : 'archive.org no entregó los ítems de esa lista'); renderResults(); });
+}
 const userOf = () => { const m = /^@([\w.\-]+)$/.exec(st.q.trim()); return m ? m[1] : (st.fbUser && st.fbUser === st.q.trim() ? st.fbUser : ''); };
 /* Perfil de usuario de archive.org: es el mismo servicio que usa su página de perfil (@usuario) */
 function doUser(u, id) {
@@ -1028,6 +1044,7 @@ function doSearch(reset) {
     if (reset) { st.page = 1; st.items = []; st.total = 0; st.fetched = 0; }
     if (isIdle()) { ++st.req; st.loading = false; st.err = false; st.items = []; st.total = 0; st.fetched = 0; renderResults(); return; }
     const id = ++st.req; st.loading = true; st.err = false; st.errWhy = ''; renderResults();
+    { const lo = listOf(); if (lo && st.listKey !== st.q.trim()) { st.listIds = null; loadList(lo, id); return; } }
     const p = new URLSearchParams();
     p.set('q', buildQuery());
     ['identifier', 'title', 'creator', 'year', 'date', 'downloads', 'mediatype'].forEach(x => p.append('fl[]', x));
@@ -1040,6 +1057,7 @@ function doSearch(reset) {
             if (id !== st.req) return;
             const rs = j.response || {}; let docs = rs.docs || [];
             st.total = rs.numFound || 0; st.fetched += docs.length;
+            if (listOf() && st.listIds) st.total = st.listIds.length;
             const exhausted = !docs.length || st.fetched >= st.total;
             /* La propia web de archive.org mezcla ítems de otros artistas (Los Tres Cuervos, Los Tres Ases…):
                en modo preciso solo se dejan los que de verdad tienen ese nombre como artista */
@@ -1058,6 +1076,7 @@ function doSearch(reset) {
 }
 function resLabel() {
     const f = FILTERS.find(x => x.id === st.filter) || FILTERS[0];
+    if (listOf()) return 'Lista de @' + listOf().u + (st.total ? ' · ' + st.total : '');
     if (userOf()) return 'Favoritos de @' + userOf() + (st.total ? ' · ' + st.total.toLocaleString('es-CL') : '');
     if (st.q) { const n = strictOn() ? st.items.length + (st.fetched < st.total ? '+' : '') : (st.total ? st.total.toLocaleString('es-CL') : ''); return 'Resultados' + (n ? ' · ' + n : ''); }
     return userOf() ? 'Favoritos de @' + userOf() : isBooks() ? 'Audiolibros en español' : '';
@@ -1077,6 +1096,9 @@ function renderResults() {
     else if (!st.items.length) {
         const f = FILTERS.find(x => x.id === st.filter) || FILTERS[0];
         const rescue = (f.q && st.q) ? '<br><button class="pill glass press" data-act="tryweb" style="margin:.7rem 0 0">Buscar en Todo el audio</button>' : '';
+        if (/uploader:"/.test(st.q) && /mediatype:collection/.test(st.q)) h += '<div class="empty">Esta cuenta no tiene colecciones públicas propias.<br>Puede que sus “Colecciones” de archive.org sean otra cosa (listas o favoritos) y no cuenten como colecciones suyas.</div>';
+        else if (/uploader:"/.test(st.q)) h += '<div class="empty">No encontré audio subido por esta cuenta.</div>';
+        else
         h += '<div class="empty">Sin resultados' + (st.q ? ' para “' + esc(st.q) + '”' : '') + (f.q ? ' en ' + esc(f.label) : '') +
             '.<br>Prueba con menos palabras o solo con el nombre de la banda.' + rescue + '</div>';
     }
@@ -1089,6 +1111,8 @@ function renderResults() {
 }
 /* Detecta enlaces pegados de archive.org: ítem directo o página de búsqueda */
 function parsePasted(v) {
+    const ml = /archive\.org\/details\/@([^\/?#\s]+)\/lists\/(\d+)/i.exec(v);   /* lista de un usuario */
+    if (ml) return { type: 'list', u: safeDecode(ml[1]), n: ml[2] };
     let mi = /archive\.org\/(?:details|download|embed)\/([^\/?#\s]+)/i.exec(v);
     const mu = /^\s*@([\w.\-]+)\s*$/.exec(v);   /* también vale escribir solo @usuario */
     if (mu) mi = [0, '@' + mu[1]];
@@ -1110,6 +1134,7 @@ function commitQuery(v) {
     if (!v) { if (st.q || st.adv) { st.q = ''; st.adv = false; st.broad = false; st.within = ''; $('q2').value = ''; renderChips(); doSearch(true); } return; }
     const p = parsePasted(v);
     if (p && p.type === 'item') { openAlbum(p.id); return; }
+    if (p && p.type === 'list') { v = '@' + p.u + '/lists/' + p.n; if (qEl.value !== v) qEl.value = v; $('searchbox').classList.add('has'); }
     if (p && p.type === 'user') { v = '@' + p.u; if (qEl.value !== v) qEl.value = v; $('searchbox').classList.add('has'); }
     if (p && p.type === 'none') { toast('Ese enlace de búsqueda no trae consulta'); return; }
     let adv = false, q = v;
