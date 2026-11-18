@@ -984,6 +984,8 @@ function wq() {
     return w ? ' AND ' + smartQuery(w, true) : '';
 }
 function buildQuery() {
+    const us = userOf();   /* @usuario: sus Favoritos (la colección fav-usuario de archive.org) */
+    if (us) return '(collection:"fav-' + us.toLowerCase() + '") AND mediatype:(audio OR etree OR collection) AND NOT access-restricted-item:true';
     const f = FILTERS.find(x => x.id === st.filter) || FILTERS[0];
     const notRestr = 'AND NOT access-restricted-item:true';
     if (st.adv && st.q.trim()) {
@@ -1026,10 +1028,9 @@ function doSearch(reset) {
     if (reset) { st.page = 1; st.items = []; st.total = 0; st.fetched = 0; }
     if (isIdle()) { ++st.req; st.loading = false; st.err = false; st.items = []; st.total = 0; st.fetched = 0; renderResults(); return; }
     const id = ++st.req; st.loading = true; st.err = false; st.errWhy = ''; renderResults();
-    const us = userOf(); if (us) { doUser(us, id); return; }
     const p = new URLSearchParams();
     p.set('q', buildQuery());
-    ['identifier', 'title', 'creator', 'year', 'date', 'downloads'].forEach(x => p.append('fl[]', x));
+    ['identifier', 'title', 'creator', 'year', 'date', 'downloads', 'mediatype'].forEach(x => p.append('fl[]', x));
     p.set('rows', '50'); p.set('page', String(st.page)); p.set('output', 'json');
     const sd = SORTS.find(s => s.id === effSort()) || {}; if (sd.f) p.append('sort[]', sd.f + ' ' + st.dir);
     fetch(IA + '/advancedsearch.php?' + p.toString())
@@ -1057,11 +1058,13 @@ function doSearch(reset) {
 }
 function resLabel() {
     const f = FILTERS.find(x => x.id === st.filter) || FILTERS[0];
+    if (userOf()) return 'Favoritos de @' + userOf() + (st.total ? ' · ' + st.total.toLocaleString('es-CL') : '');
     if (st.q) { const n = strictOn() ? st.items.length + (st.fetched < st.total ? '+' : '') : (st.total ? st.total.toLocaleString('es-CL') : ''); return 'Resultados' + (n ? ' · ' + n : ''); }
-    return isBooks() ? 'Audiolibros en español' : '';
+    return userOf() ? 'Favoritos de @' + userOf() : isBooks() ? 'Audiolibros en español' : '';
 }
 function rowHtml(d) {
     const sub = [first(d.creator) || '', yearOf(d)].filter(Boolean).join(' · ');
+    if (String(first(d.mediatype) || '') === 'collection') return '<div class="row" data-act="coll" data-id="' + esc(d.identifier) + '"><img class="cov" loading="lazy" data-ph="' + esc(d.identifier) + '" src="' + esc(coverUrl(d.identifier)) + '" alt=""><div class="tx"><div class="t">' + esc(first(d.title) || d.identifier) + '</div><div class="s">Colección · toca para ver su contenido</div></div></div>';
     return '<div class="row" data-act="open" data-id="' + esc(d.identifier) + '"><img class="cov" loading="lazy" data-ph="' + esc(d.identifier) + '" src="' + esc(coverUrl(d.identifier)) + '" alt="">' +
         '<div class="tx"><div class="t">' + esc(first(d.title) || d.identifier) + '</div><div class="s">' + esc(sub) + '</div></div></div>';
 }
@@ -1446,7 +1449,7 @@ function openAlbum(id, hint) {
 }
 function renderAlbum(it) {
     $('al-info').innerHTML = '<details class="info" open><summary>Información</summary>' + (it.info || []).map(r => '<div class="ir"><span class="k">' + esc(r[0]) + '</span><span class="v">' + esc(r[1]) + '</span></div>').join('') +
-        (it.up ? '<button class="ir" style="width:100%;text-align:left;color:var(--tint-t);font-weight:700;background:none;border-left:0;border-right:0;border-bottom:0;font-family:inherit" data-act="byuploader" data-val="' + esc(it.up) + '">Más de este usuario ›</button>' : '') +
+        (it.up ? '<button class="ir" style="width:100%;text-align:left;color:var(--tint-t);font-weight:700;background:none;border-left:0;border-right:0;border-bottom:0;font-family:inherit" data-act="byuploader" data-val="' + esc(it.up) + '">Más de este usuario ›</button><button class="ir" style="width:100%;text-align:left;color:var(--tint-t);font-weight:700;background:none;border-left:0;border-right:0;border-bottom:0;font-family:inherit" data-act="bycolls" data-val="' + esc(it.up) + '">Colecciones de este usuario ›</button>' : '') +
         '<a class="ir" href="' + IA + '/details/' + encodeURIComponent(it.id) + '" target="_blank" rel="noopener">Ver en archive.org ›</a></details>';
     albumItem = it; albumTracks = buildTracks(it);
     albumHead = { id: it.id, title: it.title, creator: it.creator, date: it.date };
@@ -1952,6 +1955,20 @@ const ACT = {
         switchTab('search'); $('view-search').scrollTop = 0;
         st.q = q; st.adv = true; st.broad = false; st.within = ''; st.filter = 'web'; $('q2').value = '';
         renderChips(); doSearch(true); toast('Mostrando lo que subió esta cuenta');
+    },
+    coll(b) {   /* abrir una colección: su audio */
+        const id = (b.dataset.id || '').replace(/["\\]/g, ''); if (!id) return;
+        const q = 'collection:"' + id + '" AND mediatype:(audio OR etree)';
+        qEl.value = q; $('searchbox').classList.add('has'); switchTab('search'); $('view-search').scrollTop = 0;
+        st.q = q; st.adv = true; st.broad = false; st.within = ''; st.filter = 'web'; $('q2').value = '';
+        renderChips(); doSearch(true);
+    },
+    bycolls(b) {   /* colecciones creadas por la misma cuenta */
+        const u = (b.dataset.val || '').replace(/["\\]/g, '').trim(); if (!u) return;
+        const q = 'uploader:"' + u + '" AND mediatype:collection';
+        qEl.value = q; $('searchbox').classList.add('has'); switchTab('search'); $('view-search').scrollTop = 0;
+        st.q = q; st.adv = true; st.broad = false; st.within = ''; st.filter = 'web'; $('q2').value = '';
+        renderChips(); doSearch(true); toast('Colecciones de esta cuenta');
     },
     libtab(b) { libTab = b.dataset.val; renderLibrary(); },
     libsort(b) { LIBSORT[libTab] = b.dataset.val; lsSet('libSort', LIBSORT); renderLibrary(); },
