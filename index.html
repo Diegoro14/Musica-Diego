@@ -323,6 +323,7 @@ input, select, textarea { font-size: 16px !important; font-family: inherit; }
     <symbol id="i-heartf" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54z"/></symbol>
     <symbol id="i-down" viewBox="0 0 24 24"><path d="M5 9l7 7 7-7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-left" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V3.5M12 3.5 8 7.5M12 3.5l4 4M6 11H5.5A1.5 1.5 0 0 0 4 12.5v6A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5v-6a1.5 1.5 0 0 0-1.5-1.5H18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.3" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M15.4 15.4L20.5 20.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
 </svg>
 
@@ -334,6 +335,7 @@ input, select, textarea { font-size: 16px !important; font-family: inherit; }
     <div class="search" id="searchbox">
         <svg class="ic" style="width:1.2rem;height:1.2rem"><use href="#i-search"/></svg>
         <input id="q" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Artista, banda, persona o enlace">
+        <button class="clear sv" id="q-share" data-act="sharesearch" aria-label="Compartir esta búsqueda"><svg class="ic" style="width:1.1rem;height:1.1rem"><use href="#i-share"/></svg></button>
         <button class="clear sv" id="q-save" data-act="savesearch" aria-label="Guardar esta búsqueda"><svg class="ic" style="width:1.1rem;height:1.1rem"><use href="#i-heart" id="q-save-use"/></svg></button>
         <button class="clear" id="q-clear" data-act="clearq" aria-label="Borrar">✕</button>
     </div>
@@ -438,6 +440,12 @@ input, select, textarea { font-size: 16px !important; font-family: inherit; }
     </div>
 
     <div class="card">
+        <h3 class="card-title">Puente para listas de usuarios</h3>
+        <p class="card-sub">Opcional. Si pegar el enlace de una lista de archive.org falla, aquí va la dirección de tu puente (Cloudflare Worker). Solo reenvía consultas de listas públicas de archive.org.</p>
+        <input id="bridge-url" class="field" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://mi-puente.usuario.workers.dev" style="width:100%;height:2.6rem;border-radius:12px;padding:0 .8rem;background:var(--card2);color:var(--label);border:1px solid var(--line);font:inherit">
+    </div>
+
+    <div class="card">
         <h3 class="card-title">Respaldo</h3>
         <p class="card-sub">Guarda en un archivo .json tus álbumes y canciones favoritas, listas, búsquedas guardadas e historial. Al importarlo en otro dispositivo se combina con lo que ya tengas, sin borrar nada.</p>
         <div style="display:grid;gap:.6rem">
@@ -472,6 +480,10 @@ input, select, textarea { font-size: 16px !important; font-family: inherit; }
         <button class="pill orange press" data-act="al-play"><svg class="ic"><use href="#i-play"/></svg>Reproducir</button>
         <button class="pill glass press" data-act="al-shuffle"><svg class="ic"><use href="#i-shuffle"/></svg>Aleatorio</button>
         <button class="pill glass press" data-act="al-addpl">＋ Lista</button>
+    </div>
+    <div class="abtns" style="margin-top:-.2rem">
+        <button class="pill glass press" data-act="al-share"><svg class="ic"><use href="#i-share"/></svg>Compartir</button>
+        <button class="pill glass press" data-act="al-zip">⬇ Descargar ZIP</button>
     </div>
     <div class="adesc" id="al-desc" data-act="toggle-desc"></div>
     <div id="al-info"></div>
@@ -1011,7 +1023,8 @@ function idsFrom(o, out) {   /* junta los identificadores que haya en la respues
 function loadList(lo, id) {
     /* archive.org no permite pedir este servicio desde otra página (CORS): primero directo y, si el navegador lo bloquea, por un puente público que solo reenvía esta consulta */
     const base = IA + '/services/users/@' + lo.u + '/lists/' + lo.n;
-    const urls = [base, 'https://api.allorigins.win/raw?url=' + encodeURIComponent(base), 'https://corsproxy.io/?url=' + encodeURIComponent(base)];
+    const br = String(lsGet('bridge', '') || '').trim().replace(/\/+$/, '');
+    const urls = (br && /^https:\/\//.test(br) ? [br + '/?url=' + encodeURIComponent(base)] : []).concat([base, 'https://api.allorigins.win/raw?url=' + encodeURIComponent(base), 'https://corsproxy.io/?url=' + encodeURIComponent(base)]);
     const tryNext = i => fetch(urls[i]).then(r => { if (!r.ok) { const e = new Error('http ' + r.status); e.http = true; throw e; } return r.json(); })
         .then(j => { const ids = idsFrom(j, []).filter((x, k, a) => a.indexOf(x) === k); if (!ids.length) throw new Error('vacía'); return ids; })
         .catch(e => i + 1 < urls.length ? tryNext(i + 1) : Promise.reject(e));
@@ -1208,7 +1221,7 @@ function parseItem(id, j) {
         const k = kindOf(f); if (!k || !CAN[k] || String(f.private) === 'true') return;
         const base = f.name.replace(/\.[^.\/]+$/, ''), rank = rankOf(f, k), cur = it.byKind[k][base];
         if (cur && cur.rank >= rank) return;
-        it.byKind[k][base] = { name: f.name, base, title: f.title || '', length: parseLen(f.length), track: parseTrack(f.track), rank };
+        it.byKind[k][base] = { name: f.name, base, title: f.title || '', length: parseLen(f.length), track: parseTrack(f.track), rank, fmt: String(f.format || '') };
     });
     return it;
 }
@@ -1474,6 +1487,13 @@ function openAlbum(id, hint) {
     fetchItem(id).then(it => { if (albumId === id) renderAlbum(it); })
         .catch(() => { if (albumId === id) $('al-tracks').innerHTML = '<div class="errbox">No pude cargar este elemento.<br>Revisa tu conexión o el enlace.<br><button class="pill glass press" data-act="retry-album">Reintentar</button></div>'; });
 }
+/* Compartir: enlace público de archive.org (lo abre cualquiera, sin la app) */
+function shareLink(title, url) {
+    if (navigator.share) { navigator.share({ title, text: title, url }).catch(() => {}); return; }
+    const done = () => toast('Enlace copiado');
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => prompt('Copia este enlace', url));
+    else prompt('Copia este enlace', url);
+}
 function renderAlbum(it) {
     $('al-info').innerHTML = '<details class="info" open><summary>Información</summary>' + (it.info || []).map(r => '<div class="ir"><span class="k">' + esc(r[0]) + '</span><span class="v">' + esc(r[1]) + '</span></div>').join('') +
         (it.up ? '<button class="ir" style="width:100%;text-align:left;color:var(--tint-t);font-weight:700;background:none;border-left:0;border-right:0;border-bottom:0;font-family:inherit" data-act="byuploader" data-val="' + esc(it.up) + '">Más de este usuario ›</button><button class="ir" style="width:100%;text-align:left;color:var(--tint-t);font-weight:700;background:none;border-left:0;border-right:0;border-bottom:0;font-family:inherit" data-act="bycolls" data-val="' + esc(it.up) + '">Colecciones de este usuario ›</button>' : '') +
@@ -1649,6 +1669,7 @@ function importData(text) {
     applyTheme(); renderSettings(); ensureWave(); renderSaved(); renderCont(); renderLibrary(); updateFavUI();
     toast('Respaldo importado: ' + nf + ' álbumes, ' + nl + ' canciones, ' + np + ' listas, ' + ns + ' búsquedas nuevas');
 }
+{ const bi = $('bridge-url'); if (bi) { bi.value = String(lsGet('bridge', '') || ''); bi.addEventListener('change', () => { lsSet('bridge', bi.value.trim()); toast(bi.value.trim() ? 'Puente guardado' : 'Puente quitado'); }); } }
 $('bk-file').addEventListener('change', e => {
     const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
     const rd = new FileReader(); rd.onload = () => importData(String(rd.result || '')); rd.onerror = () => toast('No pude leer el archivo'); rd.readAsText(f);
@@ -1996,6 +2017,29 @@ const ACT = {
         qEl.value = q; $('searchbox').classList.add('has'); switchTab('search'); $('view-search').scrollTop = 0;
         st.q = q; st.adv = true; st.broad = false; st.within = ''; st.filter = 'web'; $('q2').value = '';
         renderChips(); doSearch(true); toast('Colecciones de esta cuenta');
+    },
+    'al-share'() {
+        if (!albumItem) return;
+        shareLink(albumItem.title + (albumItem.creator ? ' — ' + albumItem.creator : ''), IA + '/details/' + encodeURIComponent(albumItem.id));
+    },
+    'al-zip'() {
+        if (!albumItem || !albumTracks.length) { toast('Este álbum no tiene audio para descargar'); return; }
+        const k = albumTracks[0].kind, fm = {};
+        Object.keys(albumItem.byKind[k] || {}).forEach(b => { const f = albumItem.byKind[k][b].fmt; if (f) fm[f] = 1; });
+        const list = Object.keys(fm);
+        const id = encodeURIComponent(albumItem.id);
+        const url = IA + '/compress/' + id + (list.length ? '/formats=' + list.map(encodeURIComponent).join(',') : '') + '&file=/' + id + '.zip';
+        toast('Archive.org prepara el ZIP; puede tardar un poco');
+        window.open(list.length ? url : IA + '/compress/' + id, '_blank', 'noopener');
+    },
+    sharesearch() {
+        if (!st.q.trim()) { toast('Escribe algo para buscar y luego compártelo'); return; }
+        const lo = listOf(), us = userOf(); let url, title;
+        if (lo) { url = IA + '/details/@' + lo.u + '/lists/' + lo.n; title = 'Lista de @' + lo.u; }
+        else if (us) { url = IA + '/details/@' + us; title = '@' + us + ' en archive.org'; }
+        else if (st.adv) { url = IA + '/search?query=' + encodeURIComponent(st.q.trim()); title = 'Búsqueda en archive.org'; }
+        else { const t = st.q.trim().replace(/"/g, ''); url = IA + '/search?query=' + encodeURIComponent(st.broad ? t : 'creator:"' + t + '"'); title = t + ' en archive.org'; }
+        shareLink(title, url);
     },
     libtab(b) { libTab = b.dataset.val; renderLibrary(); },
     libsort(b) { LIBSORT[libTab] = b.dataset.val; lsSet('libSort', LIBSORT); renderLibrary(); },
