@@ -1524,7 +1524,8 @@ function openPlayer() {
     if (!item) return; updateTrackUI(); setSheet('sheet-player', true); playerOpen = true; document.body.classList.add('pl-open'); ensureWave(); updateProgress();
     genie(true);
 }
-/* Efecto como en Apple Music: el panel se encoge hasta la barra del mini reproductor y la portada viaja hasta la del mini */
+/* Efecto como en Apple Music: el panel se encoge hacia el mini reproductor y la portada viaja hasta la del mini.
+   Solo usa transform y opacity (lo que iOS anima sin saltos); la portada que viaja es una copia, para no deformarla. */
 function genie(opening, fromTransform) {
     const sh = $('sheet-player'), mini = $('mini'), mc = $('m-cover'), pc = $('p-cover');
     if (!sh.animate || !mini || !mc || !pc || mini.classList.contains('hidden')) return null;
@@ -1532,24 +1533,26 @@ function genie(opening, fromTransform) {
     const keep = sh.style.transform; if (fromTransform) sh.style.transform = 'none';
     const r = mini.getBoundingClientRect(), m = mc.getBoundingClientRect(), c = pc.getBoundingClientRect(), vw = innerWidth, vh = innerHeight;
     if (fromTransform) sh.style.transform = keep;
-    const rad = 20, full = 'inset(0px 0px 0px 0px round 0px)';
-    const small = 'inset(' + r.top + 'px ' + (vw - r.right) + 'px ' + (vh - r.bottom) + 'px ' + r.left + 'px round ' + rad + 'px)';
-    const cx = (m.left + m.width / 2) - (c.left + c.width / 2), cy = (m.top + m.height / 2) - (c.top + c.height / 2), cs = Math.max(.05, m.width / Math.max(1, c.width));
-    const toMini = 'translate(' + cx + 'px,' + cy + 'px) scale(' + cs + ')';
-    const dur = opening ? 440 : 480, ease = 'cubic-bezier(.32,.72,0,1)';
-    const first = opening ? [{ transform: toMini }, { transform: 'none' }] : [{ transform: 'none' }, { transform: toMini }];
-    const fl = opening ? 'none' : 'forwards';
+    const sx = Math.max(.05, r.width / vw), sy = Math.max(.03, r.height / vh), dy = r.top + r.height / 2 - vh / 2;
+    const small = 'translate(0,' + dy + 'px) scale(' + sx + ',' + sy + ')';
+    const dur = opening ? 420 : 460, ease = 'cubic-bezier(.32,.72,0,1)', fl = opening ? 'none' : 'forwards';
     const anims = [];
-    anims.push(sh.animate(opening ? [{ clipPath: small, opacity: 0 }, { clipPath: small, opacity: 1, offset: .25 }, { clipPath: full, opacity: 1 }] : [{ clipPath: full, opacity: 1 }, { clipPath: small, opacity: 1, offset: .75 }, { clipPath: small, opacity: 0 }], { duration: dur, easing: ease, fill: fl }));
-    if (!opening && fromTransform) anims.push(sh.animate([{ transform: fromTransform }, { transform: 'none', offset: .35 }, { transform: 'none' }], { duration: dur, easing: 'ease-out', fill: 'forwards' }));
-    anims.push(pc.animate(first, { duration: dur, easing: ease, fill: fl }));
+    const cl = pc.cloneNode(false); cl.removeAttribute('id');
+    cl.style.cssText = 'position:fixed;margin:0;z-index:70;pointer-events:none;transform-origin:0 0;object-fit:cover;left:' + c.left + 'px;top:' + c.top + 'px;width:' + c.width + 'px;height:' + c.height + 'px;will-change:transform';
+    const tr = 'translate(' + (m.left - c.left) + 'px,' + (m.top - c.top) + 'px) scale(' + (m.width / Math.max(1, c.width)) + ',' + (m.height / Math.max(1, c.height)) + ')';
+    const pcVis = pc.style.visibility; pc.style.visibility = 'hidden'; document.body.appendChild(cl);
+    anims.push(cl.animate(opening ? [{ transform: tr }, { transform: 'none' }] : [{ transform: 'none' }, { transform: tr }], { duration: dur, easing: ease, fill: 'forwards' }));
+    const from = fromTransform || 'none';
+    anims.push(sh.animate(opening
+        ? [{ transform: small, opacity: 0 }, { transform: small, opacity: 1, offset: .2 }, { transform: 'none', opacity: 1 }]
+        : [{ transform: from, opacity: 1 }, { transform: small, opacity: 1, offset: .8 }, { transform: small, opacity: 0 }], { duration: dur, easing: ease, fill: fl }));
     Array.prototype.forEach.call(sh.children, el => {
         if (el.contains(pc) || el.classList.contains('pbg') || el.classList.contains('pshade') || el.id === 'queue' || el.id === 'lyrics') return;
-        anims.push(el.animate(opening ? [{ opacity: 0, offset: 0 }, { opacity: 0, offset: .5 }, { opacity: 1 }] : [{ opacity: 1 }, { opacity: 0, offset: .45 }, { opacity: 0 }], { duration: dur, easing: 'linear', fill: fl }));
+        anims.push(el.animate(opening ? [{ opacity: 0 }, { opacity: 0, offset: .5 }, { opacity: 1 }] : [{ opacity: 1 }, { opacity: 0, offset: .4 }, { opacity: 0 }], { duration: dur, easing: 'linear', fill: fl }));
     });
-    const done = Promise.all(anims.map(x => x.finished));
-    if (!opening) done.then(() => { mini.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.04)' }, { transform: 'scale(1)' }], { duration: 260 }); }).catch(() => {});
-    return { finished: done, cancel: () => anims.forEach(x => { try { x.cancel(); } catch (e) {} }) };
+    const cleanup = () => { try { cl.remove(); } catch (e) {} pc.style.visibility = pcVis; };
+    const done = Promise.all(anims.map(x => x.finished)).then(() => { if (opening) { cleanup(); anims.forEach(x => { try { x.cancel(); } catch (e) {} }); } });
+    return { finished: done, cancel: () => { anims.forEach(x => { try { x.cancel(); } catch (e) {} }); cleanup(); } };
 }
 function minimizePlayer(fromTransform) {
     if (!playerOpen) return;
