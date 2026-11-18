@@ -971,6 +971,7 @@ function smartQuery(t, broad) {
        las etiquetas y también la descripción (muchos conciertos ponen al artista solo ahí). Así aparece todo
        lo de esa banda y primero lo más relevante; las palabras sueltas quedan como respaldo. */
     const p = '"' + w.join(' ') + '"';
+   /* una sola palabra puede ser un usuario de archive.org */
     return '(creator:' + p + '^10 OR subject:' + p + '^5 OR title:' + p + '^4 OR description:' + p + '^1 OR (' + words + '))';
 }
 /* “Filtrar dentro de esto”: la búsqueda principal (p. ej. un coleccionista como Aadam Jacobs) y además otro nombre (p. ej. Pearl Jam) */
@@ -992,7 +993,25 @@ function buildQuery() {
     return '(' + (f.q || 'mediatype:(audio OR etree)') + ') ' + notRestr;
 }
 const normName = s => foldAcc(String(s).toLowerCase()).replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9ñ]+/g, ' ').trim();
-const strictOn = () => !!(st.q && !st.adv && !st.broad && !st.within && !isBooks());
+const strictOn = () => !!(st.q && !st.adv && !st.broad && !st.within && !isBooks() && !userOf());
+const userOf = () => { const m = /^@([\w.\-]+)$/.exec(st.q.trim()); return m ? m[1] : (st.fbUser && st.fbUser === st.q.trim() ? st.fbUser : ''); };
+/* Perfil de usuario de archive.org: es el mismo servicio que usa su página de perfil (@usuario) */
+function doUser(u, id) {
+    const p = new URLSearchParams({ service_backend: 'metadata', user_query: '', page_type: 'account_details', page_target: '@' + u, hits_per_page: '50', page: String(st.page) });
+    fetch(IA + '/services/search/beta/page_production/?' + p.toString())
+        .then(r => { if (!r.ok) { const e = new Error('http ' + r.status); e.http = true; throw e; } return r.json(); })
+        .then(j => {
+            if (id !== st.req) return;
+            if (!(((j || {}).response || {}).body)) { st.loading = false; st.err = true; st.errWhy = 'archive.org no deja listar el perfil @' + u + ' desde fuera. Abre un ítem suyo y toca “Más de este usuario”.'; renderResults(); return; }
+            const hh = ((((j || {}).response || {}).body || {}).hits) || {}; const hits = hh.hits || [];
+            st.total = hh.total || 0; st.fetched += hits.length;
+            const have = {}; st.items.forEach(d => { have[d.identifier] = 1; });
+            hits.forEach(h => { const f = (h && h.fields) || {}; const mt = String(first(f.mediatype) || '').toLowerCase();
+                if (!f.identifier || have[f.identifier] || (mt && mt !== 'audio' && mt !== 'etree')) return; have[f.identifier] = 1; st.items.push(f); });
+            st.loading = false; renderResults();
+        })
+        .catch(e => { if (id !== st.req) return; if (st.page > 1) st.page--; st.loading = false; st.err = true; st.errWhy = 'Usuario @' + u + ': ' + (e && e.http ? String(e.message) : 'el navegador bloqueó la consulta o la respuesta no es válida'); renderResults(); });
+}
 function creatorOk(d) {
     const name = normName(st.q), w = name.split(' ');
     const alts = [name]; if (w.length === 2) alts.push(w[1] + ' ' + w[0]);
@@ -1002,7 +1021,8 @@ function creatorOk(d) {
 function doSearch(reset) {
     if (reset) { st.page = 1; st.items = []; st.total = 0; st.fetched = 0; }
     if (isIdle()) { ++st.req; st.loading = false; st.err = false; st.items = []; st.total = 0; st.fetched = 0; renderResults(); return; }
-    const id = ++st.req; st.loading = true; st.err = false; renderResults();
+    const id = ++st.req; st.loading = true; st.err = false; st.errWhy = ''; renderResults();
+    const us = userOf(); if (us) { doUser(us, id); return; }
     const p = new URLSearchParams();
     p.set('q', buildQuery());
     ['identifier', 'title', 'creator', 'year', 'date', 'downloads'].forEach(x => p.append('fl[]', x));
@@ -1021,6 +1041,7 @@ function doSearch(reset) {
             if (strictOn()) docs = docs.filter(creatorOk);
             if (!docs.length && !exhausted && strictOn()) { st.page++; doSearch(false); return; }   /* página sin ninguno: pide la siguiente */
             if (!docs.length && !st.items.length && exhausted && st.q && !st.adv && !st.broad && !st.within) { st.broad = true; doSearch(true); return; }   /* nada como artista: se amplía solo */
+            if (!docs.length && !st.items.length && exhausted && st.broad && !st.adv && !st.within && !isBooks() && /^[\w.\-]+$/.test(st.q.trim())) { st.fbUser = st.q.trim(); doSearch(true); return; }   /* una palabra sin resultados: puede ser un usuario */
             const have = {}; st.items.forEach(d => { have[d.identifier] = 1; });
             docs.forEach(d => { if (d.identifier && !have[d.identifier]) st.items.push(d); });
             st.loading = false; renderResults();
@@ -1045,7 +1066,7 @@ function renderResults() {
     let h = st.items.map(rowHtml).join('');
     if (isIdle()) { $('results').innerHTML = '<div class="empty">Escribe un artista, una banda o pega un enlace de archive.org.<br>O toca <b>Audiolibros (español)</b> para buscar libros narrados.</div>'; renderSaved(); $('more').innerHTML = ''; return; }
     if (st.loading) h += '<div class="spin"></div>';
-    else if (st.err) h += '<div class="errbox">No pude conectar con Internet Archive.<br>Revisa tu conexión e inténtalo de nuevo.<br><button class="pill glass press" data-act="retry">Reintentar</button></div>';
+    else if (st.err) h += '<div class="errbox">No pude conectar con Internet Archive.' + (st.errWhy ? '<br><small style="opacity:.7">' + esc(st.errWhy) + '</small>' : '') + '<br>Revisa tu conexión e inténtalo de nuevo.<br><button class="pill glass press" data-act="retry">Reintentar</button></div>';
     else if (!st.items.length) {
         const f = FILTERS.find(x => x.id === st.filter) || FILTERS[0];
         const rescue = (f.q && st.q) ? '<br><button class="pill glass press" data-act="tryweb" style="margin:.7rem 0 0">Buscar en Todo el audio</button>' : '';
@@ -1061,7 +1082,10 @@ function renderResults() {
 }
 /* Detecta enlaces pegados de archive.org: ítem directo o página de búsqueda */
 function parsePasted(v) {
-    const mi = /archive\.org\/(?:details|download|embed)\/([^\/?#\s]+)/i.exec(v);
+    let mi = /archive\.org\/(?:details|download|embed)\/([^\/?#\s]+)/i.exec(v);
+    const mu = /^\s*@([\w.\-]+)\s*$/.exec(v);   /* también vale escribir solo @usuario */
+    if (mu) mi = [0, '@' + mu[1]];
+    if (mi && mi[1].charAt(0) === '@') return { type: 'user', u: safeDecode(mi[1]).replace(/^@+/, '') };
     if (mi) return { type: 'item', id: safeDecode(mi[1]) };
     if (/archive\.org[^\s]*\/search(\.php)?\b/i.test(v)) {
         const qi = v.indexOf('?');
@@ -1079,6 +1103,7 @@ function commitQuery(v) {
     if (!v) { if (st.q || st.adv) { st.q = ''; st.adv = false; st.broad = false; st.within = ''; $('q2').value = ''; renderChips(); doSearch(true); } return; }
     const p = parsePasted(v);
     if (p && p.type === 'item') { openAlbum(p.id); return; }
+    if (p && p.type === 'user') { v = '@' + p.u; if (qEl.value !== v) qEl.value = v; $('searchbox').classList.add('has'); }
     if (p && p.type === 'none') { toast('Ese enlace de búsqueda no trae consulta'); return; }
     let adv = false, q = v;
     if (p && p.type === 'search') {
@@ -1138,6 +1163,7 @@ function parseItem(id, j) {
     const it = {
         id, title: first(md.title) || id,
         creator: Array.isArray(md.creator) ? md.creator.join(', ') : (md.creator || ''),
+        up: String(first(md.uploader) || ''),
         date: String(first(md.date) || first(md.year) || '').slice(0, 10),
         desc: stripHtml(Array.isArray(md.description) ? md.description.join('\n') : (md.description || '')),
         info: infoRows(md, j),
@@ -1416,6 +1442,7 @@ function openAlbum(id, hint) {
 }
 function renderAlbum(it) {
     $('al-info').innerHTML = '<details class="info" open><summary>Información</summary>' + (it.info || []).map(r => '<div class="ir"><span class="k">' + esc(r[0]) + '</span><span class="v">' + esc(r[1]) + '</span></div>').join('') +
+        (it.up ? '<button class="ir" style="width:100%;text-align:left;color:var(--tint-t);font-weight:700;background:none;border-left:0;border-right:0;border-bottom:0;font-family:inherit" data-act="byuploader" data-val="' + esc(it.up) + '">Más de este usuario ›</button>' : '') +
         '<a class="ir" href="' + IA + '/details/' + encodeURIComponent(it.id) + '" target="_blank" rel="noopener">Ver en archive.org ›</a></details>';
     albumItem = it; albumTracks = buildTracks(it);
     albumHead = { id: it.id, title: it.title, creator: it.creator, date: it.date };
@@ -1897,6 +1924,14 @@ const ACT = {
             st.q = qq; st.adv = false; st.broad = false; st.within = ''; st.filter = 'web';   /* solo ítems con ese artista exacto */
             renderChips(); doSearch(true); toast('Mostrando todo de ' + c);
         }
+    },
+    byuploader(b) {   /* todo lo que subió la misma cuenta de archive.org */
+        const u = (b.dataset.val || '').replace(/["\\]/g, '').trim(); if (!u) return;
+        const q = 'uploader:"' + u + '" AND mediatype:(audio OR etree)';
+        qEl.value = q; $('searchbox').classList.add('has');
+        switchTab('search'); $('view-search').scrollTop = 0;
+        st.q = q; st.adv = true; st.broad = false; st.within = ''; st.filter = 'web'; $('q2').value = '';
+        renderChips(); doSearch(true); toast('Mostrando lo que subió esta cuenta');
     },
     libtab(b) { libTab = b.dataset.val; renderLibrary(); },
     set(b) {
