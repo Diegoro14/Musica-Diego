@@ -237,9 +237,9 @@ html.dark .pshade { background: linear-gradient(to bottom, rgba(0,0,0,.2), var(-
 #mini .mbar { position: absolute; left: .9rem; right: .9rem; bottom: 0; height: 2px; border-radius: 2px; background: transparent; overflow: hidden; }
 #mini .mbar i { display: block; height: 100%; background: var(--tint); width: 0; }
 
-#toast { position: fixed; top: calc(var(--safe-top) + .6rem); left: 50%; z-index: 60; transform: translate(-50%, -160%); max-width: 90%; padding: .6rem 1rem; border-radius: 99px;
-    font-size: .85rem; font-weight: 600; text-align: center; background: var(--mini-bg); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0,0,0,.3); transition: transform .3s cubic-bezier(.32,.72,0,1); pointer-events: none; }
-#toast.on { transform: translate(-50%, 0); }
+#toast { position: fixed; top: calc(var(--safe-top) + .6rem); left: 50%; z-index: 60; transform: translate(-50%, calc(-100% - var(--safe-top) - 1.5rem)); opacity: 0; visibility: hidden; max-width: 90%; padding: .6rem 1rem; border-radius: 99px;
+    font-size: .85rem; font-weight: 600; text-align: center; background: var(--mini-bg); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0,0,0,.3); transition: transform .3s cubic-bezier(.32,.72,0,1), opacity .25s, visibility 0s .3s; pointer-events: none; }
+#toast.on { transform: translate(-50%, 0); opacity: 1; visibility: visible; transition: transform .3s cubic-bezier(.32,.72,0,1), opacity .25s, visibility 0s; }
 /* Con el reproductor abierto el aviso sale abajo, para no tapar los botones de arriba */
 /* (sin cambios: el aviso sale siempre arriba) */
 
