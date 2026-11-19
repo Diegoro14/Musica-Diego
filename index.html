@@ -213,8 +213,8 @@ input, select, textarea { font-size: 16px !important; font-family: inherit; }
 .sbtn .ic { width: 1rem; height: 1rem; }
 .sbtn.on { color: var(--tint-t); }
 #queue, #lyrics { position: absolute; left: 0; right: 0; bottom: 0; top: 26%; z-index: 5; background: var(--bg); border-top: 1px solid var(--line); border-radius: 24px 24px 0 0; overflow-y: auto;
-    padding: 1rem 1.25rem calc(var(--stack) + 10px); transform: translateY(105%); transition: transform .32s cubic-bezier(.32,.72,0,1); }
-#queue.on, #lyrics.on { transform: none; }
+    padding: 1rem 1.25rem calc(var(--stack) + 10px); transform: translateY(105%); visibility: hidden; pointer-events: none; transition: transform .32s cubic-bezier(.32,.72,0,1), visibility 0s linear .32s; }
+#queue.on, #lyrics.on { transform: none; visibility: visible; pointer-events: auto; transition: transform .32s cubic-bezier(.32,.72,0,1), visibility 0s; }
 #lyrics { top: 14%; z-index: 6; }
 .ly-l { font-size: 1.3rem; font-weight: 800; line-height: 1.35; padding: .35rem 0; color: var(--label2); opacity: .55; transition: opacity .25s, color .25s; }
 .ly-l.on { color: var(--tint-t); opacity: 1; }
@@ -239,9 +239,7 @@ input, select, textarea { font-size: 16px !important; font-family: inherit; }
 #toast { position: fixed; top: calc(var(--safe-top) + .6rem); left: 50%; z-index: 60; transform: translate(-50%, -160%); max-width: 90%; padding: .6rem 1rem; border-radius: 99px;
     font-size: .85rem; font-weight: 600; text-align: center; background: var(--mini-bg); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0,0,0,.3); transition: transform .3s cubic-bezier(.32,.72,0,1); pointer-events: none; }
 #toast.on { transform: translate(-50%, 0); }
-/* con el reproductor abierto el aviso sale abajo, para no tapar Cerrar ni la manija */
-body.pl-open #toast { top: auto; bottom: calc(var(--stack) + 14px); transform: translate(-50%, 160%); }
-body.pl-open #toast.on { transform: translate(-50%, 0); }
+/* El aviso sale siempre arriba */
 
 /* Ajustes */
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 1rem; margin-bottom: 1rem; }
@@ -309,7 +307,7 @@ body.pl-open #toast.on { transform: translate(-50%, 0); }
     mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
 .lg-range { width: 100%; accent-color: var(--tint); margin: 0; height: 1.75rem; }
 @media (prefers-reduced-transparency: reduce) { .lg-bg { background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; } }
-@media (prefers-reduced-motion: reduce) { .eq i, .play.buf, .spin { animation: none; } .sheet, #queue { transition-duration: .01s; } }
+@media (prefers-reduced-motion: reduce) { .eq i, .play.buf, .spin { animation: none; } .sheet, #queue, #lyrics { transition-duration: .01s; } }
 </style>
 </head>
 <body>
@@ -1360,12 +1358,19 @@ async function loadLyrics(forceTitle) {
     lyTick(true);
 }
 function lyTick(force) {
-    if (!LY.lines || !$('lyrics').classList.contains('on')) return;
-    const ct = audio.currentTime || 0; let k = -1;
-    for (let i = 0; i < LY.lines.length; i++) { if (LY.lines[i].t <= ct + .25) k = i; else break; }
-    if (k === LY.tick && !force) return; LY.tick = k;
-    const els = $('ly-body').querySelectorAll('.ly-l'); els.forEach((e, i) => e.classList.toggle('on', i === k));
-    if (k >= 0 && els[k]) els[k].scrollIntoView({ block: 'center', behavior: force ? 'auto' : 'smooth' });
+    try {
+        const lyEl = $('lyrics');
+        if (!LY.lines || !lyEl || !lyEl.classList.contains('on') || !playerOpen || playerMinimizing) return;
+        const ct = audio.currentTime || 0; let k = -1;
+        for (let i = 0; i < LY.lines.length; i++) { if (LY.lines[i].t <= ct + .25) k = i; else break; }
+        if (k === LY.tick && !force) return; LY.tick = k;
+        const body = $('ly-body'); if (!body) return;
+        const els = body.querySelectorAll('.ly-l'); els.forEach((e, i) => e.classList.toggle('on', i === k));
+        if (k >= 0 && els[k]) {
+            const top = els[k].offsetTop - body.parentElement.clientHeight / 2 + els[k].clientHeight / 2;
+            lyEl.scrollTo({ top: Math.max(0, top), behavior: force ? 'auto' : 'smooth' });
+        }
+    } catch (e) {}
 }
 audio.addEventListener('timeupdate', () => lyTick(false));
 function toggle() {
@@ -1520,9 +1525,15 @@ function updateSleepUI() {
 
 /* ───────── Hojas y pestañas ───────── */
 function setSheet(id, on) { $(id).classList.toggle('on', on); }
+let activeGenie = null, playerMinimizing = false;
 function openPlayer() {
-    if (!item) return; updateTrackUI(); setSheet('sheet-player', true); playerOpen = true; document.body.classList.add('pl-open'); ensureWave(); updateProgress();
-    genie(true);
+    if (!item) return;
+    if (activeGenie) { activeGenie.cancel(); activeGenie = null; }
+    playerMinimizing = false;
+    const sh = $('sheet-player');
+    sh.style.opacity = ''; sh.style.visibility = ''; sh.style.transform = ''; sh.style.borderRadius = ''; sh.style.transition = '';
+    updateTrackUI(); setSheet('sheet-player', true); playerOpen = true; document.body.classList.add('pl-open'); ensureWave(); updateProgress();
+    activeGenie = genie(true);
 }
 /* Efecto como en Apple Music: el panel se encoge hacia el mini reproductor y la portada viaja hasta la del mini.
    Solo usa transform y opacity (lo que iOS anima sin saltos); la portada que viaja es una copia, para no deformarla. */
@@ -1556,23 +1567,29 @@ function genie(opening, fromTransform) {
     return { finished: done, cancel: () => { anims.forEach(x => { try { x.cancel(); } catch (e) {} }); cleanup(); } };
 }
 function minimizePlayer(fromTransform) {
-    if (!playerOpen) return;
+    if (!playerOpen || playerMinimizing) return;
+    playerMinimizing = true;
+    closeQueue();
+    if (activeGenie) { activeGenie.cancel(); activeGenie = null; }
     const sh = $('sheet-player'), a = genie(false, fromTransform);
-    if (!a) { sh.style.transform = ''; sh.style.borderRadius = ''; sh.style.transition = ''; closePlayer(); return; }
+    activeGenie = a;
+    if (!a) { sh.style.transform = ''; sh.style.borderRadius = ''; sh.style.transition = ''; playerMinimizing = false; closePlayer(); return; }
     let ended = false;
     const done = () => {
         if (ended) return; ended = true;
+        playerMinimizing = false;
+        if (activeGenie === a) activeGenie = null;
         sh.style.transition = 'none'; sh.style.opacity = '0'; sh.style.visibility = 'hidden'; sh.style.transform = ''; sh.style.borderRadius = '';
         closePlayer();
         requestAnimationFrame(() => requestAnimationFrame(() => { a.cancel(); sh.style.opacity = ''; sh.style.visibility = ''; sh.style.transition = ''; }));
     };
     a.finished.then(done).catch(done);
-    setTimeout(done, 900);   /* red de seguridad: nunca queda a medias */
+    setTimeout(done, 520);   /* red de seguridad: nunca queda a medias */
 }
 (function dragToMinimize() {
     const sh = $('sheet-player'); let y0 = 0, x0 = 0, t0 = 0, dy = 0, on = false, dec = false;
     sh.addEventListener('touchstart', e => {
-        if (!playerOpen || e.touches.length !== 1 || e.target.closest('input,#queue,#lyrics') || sh.scrollTop > 0) { on = false; return; }
+        if (!playerOpen || playerMinimizing || e.touches.length !== 1 || e.target.closest('input,#queue,#lyrics') || sh.scrollTop > 0) { on = false; return; }
         y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; t0 = Date.now(); dy = 0; on = true; dec = false;
     }, { passive: true });
     sh.addEventListener('touchmove', e => {
@@ -1592,8 +1609,14 @@ function minimizePlayer(fromTransform) {
     };
     sh.addEventListener('touchend', end, { passive: true }); sh.addEventListener('touchcancel', end, { passive: true });
 })();
-function closeQueue() { $('queue').classList.remove('on'); }
-function closePlayer() { closeQueue(); setSheet('sheet-player', false); playerOpen = false; document.body.classList.remove('pl-open'); }
+function closeQueue() { $('queue').classList.remove('on'); $('lyrics').classList.remove('on'); }
+function closePlayer() {
+    if (activeGenie) { activeGenie.cancel(); activeGenie = null; }
+    playerMinimizing = false;
+    const sh = $('sheet-player');
+    sh.style.transform = ''; sh.style.borderRadius = ''; sh.style.opacity = ''; sh.style.visibility = ''; sh.style.transition = '';
+    closeQueue(); setSheet('sheet-player', false); playerOpen = false; document.body.classList.remove('pl-open');
+}
 function closeOverlays() { closePlayer(); setSheet('sheet-album', false); albumOpen = false; setSheet('sheet-pl', false); plOpen = false; closePick(); }
 const TABS = ['search', 'library', 'settings'];
 function switchTab(n) {
@@ -2226,8 +2249,8 @@ const ACT = {
         sleepEnd = m ? Date.now() + m * 60000 : 0; updateSleepUI();
         toast(m ? 'La música se pausará en ' + m + ' min' : 'Temporizador apagado');
     },
-    queue() { $('lyrics').classList.remove('on'); $('queue').classList.toggle('on'); },
-    lyrics() { const el = $('lyrics'); $('queue').classList.remove('on'); el.classList.toggle('on'); if (el.classList.contains('on')) loadLyrics(); },
+    queue() { $('lyrics').classList.remove('on'); LY.req++; $('queue').classList.toggle('on'); },
+    lyrics() { const el = $('lyrics'); $('queue').classList.remove('on'); el.classList.toggle('on'); if (el.classList.contains('on')) loadLyrics(); else { LY.req++; LY.lines = null; } },
     'ly-edit'() { const t = tracks[idx] || {}, cur = lyClean(t.title || ''); const n = (prompt('Título de la canción', cur) || '').trim(); if (n) loadLyrics(n); },
     resume() {
         const e = S.recents[0]; if (!e) return;
