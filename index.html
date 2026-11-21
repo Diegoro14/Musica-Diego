@@ -1611,12 +1611,16 @@ function updMiniText() {
     }
 }
 function updateMini() { updMiniText(); $('mini').classList.toggle('hidden', !(item || pending)); }
+/* Marca en naranja, con el ecualizador animado, la pista que suena. Se compara por la pista misma (no por la lista), así que
+   sigue marcada aunque el disco se haya vuelto a abrir o la pista venga de Me gusta, una lista o la cola. */
 function highlightRows() {
-    document.querySelectorAll('[data-trk]').forEach(r => {
-        const own = r.dataset.trk === 'q' ? (item && tracks) : (albumItem && albumTracks);
-        const isCur = item && own && r.dataset.trk === 'q' ? Number(r.dataset.i) === idx : (item && albumItem && item.id === albumItem.id && tracks === albumTracks && Number(r.dataset.i) === idx);
-        r.classList.toggle('cur', !!isCur);
-        const n = r.querySelector('.n'); const i = Number(r.dataset.i);
+    const cur = item && tracks[idx] ? tracks[idx] : null;
+    document.querySelectorAll('.trk[data-kind]').forEach(r => {
+        const i = Number(r.dataset.i), k = r.dataset.kind;
+        const list = k === 'q' ? tracks : k === 'a' ? albumTracks : k === 'l' ? likeTracks : k === 'p' ? plTracks : null;
+        const isCur = !!(cur && list && list[i] && (k === 'q' ? i === idx : list[i].url === cur.url));
+        r.classList.toggle('cur', isCur);
+        const n = r.querySelector('.n'); if (!n) return;
         n.innerHTML = isCur ? '<span class="eq' + (playing ? '' : ' paused') + '"><i></i><i></i><i></i></span>' : String(i + 1);
     });
 }
@@ -1629,7 +1633,7 @@ function trkHtml(t, i, kind) {
         ? '<button class="tb press" data-act="rmpl" data-i="' + i + '" aria-label="Quitar de la lista">✕</button>'
         : '<button class="tb press' + (lk ? ' on' : '') + '" data-act="liketrk" data-k="' + kind + '" data-i="' + i + '" aria-label="Me gusta"><svg class="ic"><use href="#' + (lk ? 'i-heartf' : 'i-heart') + '"/></svg></button>' +
           '<button class="tb press" data-act="addpl" data-k="' + kind + '" data-i="' + i + '" aria-label="Añadir a lista">＋</button>';
-    return '<div class="trk" data-act="' + act + '" ' + (own ? 'data-trk="' + kind + '"' : 'data-lst="1"') + ' data-i="' + i + '"><span class="n">' + (i + 1) + '</span><span class="tt">' + esc(t.title) + sub + '</span><span class="d">' + (t.dur ? fmt(t.dur) : '') + '</span>' + btns + '</div>';
+    return '<div class="trk" data-act="' + act + '" ' + (own ? 'data-trk="' + kind + '"' : 'data-lst="1"') + ' data-kind="' + kind + '" data-i="' + i + '"><span class="n">' + (i + 1) + '</span><span class="tt">' + esc(t.title) + sub + '</span><span class="d">' + (t.dur ? fmt(t.dur) : '') + '</span>' + btns + '</div>';
 }
 function renderQueue() {
     let h = '';
@@ -1938,7 +1942,7 @@ function renderPlaylist() {
     let total = 0; plTracks.forEach(t => { total += t.dur || 0; });
     $('pl-title').textContent = p.name;
     $('pl-meta').textContent = [p.tracks.length + (p.tracks.length === 1 ? ' canción' : ' canciones'), total ? fmt(total) : ''].filter(Boolean).join(' · ');
-    $('pl-tracks').innerHTML = plTracks.length ? plTracks.map((t, i) => trkHtml(t, i, 'p')).join('') : '<div class="empty">Lista vacía.<br>En cualquier disco toca el ＋ de una canción para agregarla aquí.</div>';
+    $('pl-tracks').innerHTML = plTracks.length ? plTracks.map((t, i) => trkHtml(t, i, 'p')).join('') : '<div class="empty">Lista vacía.<br>En cualquier disco toca el ＋ de una canción para agregarla aquí.</div>'; highlightRows();
 }
 function playList(list, it, i) { if (list.length) startPlayback(it, list, i, 0); }
 function shufflePlay(list, it) {
