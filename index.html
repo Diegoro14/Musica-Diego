@@ -325,6 +325,33 @@ html.dark .pshade { background: linear-gradient(to bottom, rgba(0,0,0,.2), var(-
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
     mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
 .lg-range { width: 100%; accent-color: var(--tint); margin: 0; height: 1.75rem; }
+/* ───────── Modo PC ─────────
+   En pantallas anchas la app se queda en una columna centrada (como en el teléfono) en vez de estirarse. */
+@media (min-width: 820px) {
+    :root { --colw: 720px; --side: max(0px, calc((100vw - var(--colw)) / 2)); --desk: #e4e4e9; }
+    html.dark { --desk: #000; }
+    html { background-color: var(--desk); }
+    body { background-color: var(--desk); }
+    #bg-blobs { display: none; }
+    .view, .sheet { left: var(--side); right: var(--side); background: var(--bg); box-shadow: 0 0 0 1px var(--line), 0 0 60px rgba(0,0,0,.18); }
+    .view { scrollbar-width: thin; }
+    .sheet { scrollbar-width: thin; }
+    #mini { left: calc(var(--side) + 1rem); right: calc(var(--side) + 1rem); }
+    .tabbar { left: var(--side); right: var(--side); }
+    #pick .pk-card { left: var(--side); right: var(--side); }
+    .pcover img { width: min(22rem, 40vh); height: min(22rem, 40vh); }
+    .pwave { width: 170px; }
+    .view, .sheet { padding-left: 2rem; padding-right: 2rem; }
+    #sheet-player { padding-left: 2.2rem; padding-right: 2.2rem; }
+    .chips { margin-left: -2rem; margin-right: -2rem; padding-left: 2rem; padding-right: 2rem; }
+}
+@media (min-width: 820px) and (hover: hover) {
+    .row, .trk, .cont, .chip, .pill, .tb, #mini { cursor: pointer; }
+    .row:hover, .trk:hover { background: var(--card); border-radius: 14px; }
+    .chip:hover, .pill:hover { filter: brightness(1.12); }
+    .view::-webkit-scrollbar, .sheet::-webkit-scrollbar { width: 10px; }
+    .view::-webkit-scrollbar-thumb, .sheet::-webkit-scrollbar-thumb { background: var(--line); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+}
 @media (prefers-reduced-transparency: reduce) { .lg-bg { background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 @media (prefers-reduced-motion: reduce) { .eq i, .play.buf, .spin { animation: none; } .sheet, #queue, #lyrics { transition-duration: .01s; } }
 </style>
@@ -2509,6 +2536,29 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) touch
 applyTextSize(); initAcc(); applyTheme(); renderSettings(); renderChips(); renderSaved(); renderCont(); updShuffleUI(); updRepeatUI(); updateSleepUI(); applyRate();
 if (S.recents[0]) { pending = S.recents[0]; updateMini(); }
 if (window.lgSetTab) window.lgSetTab('search');
+
+/* ───────── Atajos de teclado (PC) ───────── */
+(function () {
+    document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('button'); if (b && e.detail > 0) b.blur(); });   /* el espacio no debe volver a pulsar el último botón tocado con el mouse */
+    document.addEventListener('keydown', e => {
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        const tg = e.target, tag = tg && tg.tagName;
+        if (tag === 'TEXTAREA' || (tag === 'INPUT' && tg.type !== 'range') || (tg && tg.isContentEditable)) return;
+        if (e.key === 'Escape') {
+            if ($('pick') && !$('pick').classList.contains('hidden')) closePick();
+            else if (playerOpen) minimizePlayer();
+            else if (plOpen) { setSheet('sheet-pl', false); plOpen = false; }
+            else if (albumOpen) { setSheet('sheet-album', false); albumOpen = false; }
+            return;
+        }
+        if (!item) return;
+        if (e.key === ' ' || e.code === 'Space') { if (tag === 'BUTTON') return; e.preventDefault(); toggle(); }
+        else if (e.key === 'ArrowRight') { e.preventDefault(); e.shiftKey ? goNext() : skip(skipN()); }
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); e.shiftKey ? goPrev() : skip(-skipN()); }
+        else if (e.key === 'n' || e.key === 'N') goNext();
+        else if (e.key === 'p' || e.key === 'P') goPrev();
+    });
+})();
 doSearch(true);
 })();
 </script>
